@@ -2,8 +2,10 @@
 #define COOLCONTROL_H
 
 #include <cstdint>
+#include <QObject>
 
-class CoolingController {
+class CoolingController : public QObject {
+    Q_OBJECT
 public:
     CoolingController();
     void setPumpState(bool start);
@@ -12,13 +14,8 @@ public:
     float getFlowRate();
     void emergencyStop();
 
-private:
-    struct CAN_Frame {
-        uint32_t id;
-        uint8_t len;
-        uint8_t data[8];
-    };
-    void sendFrame(const CAN_Frame& frame);
+signals:
+    void logMessage(const QString& msg);
 };
 
 #endif

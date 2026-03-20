@@ -4,11 +4,11 @@
 CoolingController::CoolingController() {}
 
 void CoolingController::setPumpState(bool start) {
-    std::cout << "[Cooling] Pump is: " << (start ? "ON" : "OFF") << std::endl;
+    emit logMessage(start ? "Cooling: Pump is on" : "Cooling: Pump is off.");
 }
 
 void CoolingController::setCoolerState(bool start) {
-    std::cout << "[Cooling] Cooling is: " << (start ? "ON" : "OFF") << std::endl;
+    emit logMessage(start ? "Cooling: Cooler is on" : "Cooling: Cooler is off.");
 }
 
 float CoolingController::getTemperature() {
@@ -20,9 +20,7 @@ float CoolingController::getFlowRate() {
 }
 
 void CoolingController::emergencyStop() {
-    std::cout << "[Cooling] !!! COOLING IS OFF !!!" << std::endl;
-}
-
-void CoolingController::sendFrame(const CAN_Frame& frame) {
-    // Низкоуровневая отправка
+    emit logMessage("CoolControl: EMERGENCY STOP !");
+    setPumpState(false);
+    setCoolerState(false);
 }

@@ -3,14 +3,18 @@
 
 #include "PowerControl.h"
 #include "CoolControl.h"
+#include "CanBusManager.h"
+#include <QObject>
 
 /*
  * Класс SystemManager объединяет все подсистемы установки.
  * Реализует логику безопасности (Interlocks) и предоставляет единый интерфейс для UI.
  */
-class SystemManager {
+class SystemManager : public QObject {
+    Q_OBJECT
 public:
-    SystemManager();
+    explicit SystemManager(QObject* parent = nullptr);
+    ~SystemManager();
 
     // --- Логика управления ---
     void startSystem();      // Последовательный запуск (сначала охлаждение)
@@ -32,7 +36,11 @@ public:
     bool isOk() const { return is_system_ok; }
     uint8_t getStatusFlags();
 
+signals:
+    void logMessage(const QString& msg);
+
 private:
+    CanBusManager canBus;
     PowerSupplyController power;
     CoolingController cooling;
     

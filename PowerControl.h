@@ -3,33 +3,37 @@
 
 #include <cstdint>
 #include <vector>
+#include <QObject>
+#include "CanBusManager.h"
 
-class PowerSupplyController {
+class PowerSupplyController : public QObject {
+    Q_OBJECT
 public:
-    PowerSupplyController(uint8_t deviceId = 1);
-    ~PowerSupplyController();
+    explicit PowerSupplyController(uint8_t deviceId = 1, QObject* parent = nullptr);
+    ~PowerSupplyController() = default;
 
-    bool init();
+    void setCanInterface(CanBusManager* can_interface);
+
     void setPowerState(bool turnOn);
     void setCurrent(float amperes);
     void emergencyStop();
     
-    // Метод для вызова в цикле опроса, читает CAN буфер
-    void processCanMessages(); 
+    void requestData();
+    void processCanPacket(const CAN_PACKET& rcv);
 
     float getCurrent() const { return current_actual; }
     uint8_t getStatusFlags() const { return status_flags; }
 
+signals:
+    void logMessage(const QString& msg);
+
 private:
-    int card_handle;
+    CanBusManager* can;
     uint8_t dev_id;
     float current_actual;
     uint8_t status_flags;
 
     uint32_t getTargetId() const;
-    void sendCanCommand(uint8_t cmd, const std::vector<uint8_t>& payload);
-    void requestActualCurrent();
-    void requestStatus();
 };
 
 #endif

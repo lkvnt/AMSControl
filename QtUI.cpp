@@ -1,22 +1,38 @@
 #include "QtUI.h"
-#include <QVBoxLayout>
 #include <QHBoxLayout>
+#include <QStatusBar>
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), time_axis(0.0f) {
     setupUI();
-    
     resize(800, 600);
+
+    // Подписываемся на логи Менеджера и выводим в StatusBar
+    connect(&manager, &SystemManager::logMessage, this, &MainWindow::onLogMessage);
 
     updateTimer = new QTimer(this);
     connect(updateTimer, &QTimer::timeout, this, &MainWindow::onTimerTick);
     updateTimer->start(100); // Опрос каждые 100мс для плавной линии
-
-    manager.startSystem(); 
 }
 
 void MainWindow::setupUI() {
     auto *centralWidget = new QWidget(this);
     auto *mainLayout = new QVBoxLayout(centralWidget);
+
+    // --- Панель управления запуском ---
+    auto *ctrlLayout = new QHBoxLayout();
+    startBtn = new QPushButton("ЗАПУСК СИСТЕМЫ");
+    startBtn->setStyleSheet("background-color: #2e8b57; color: white; height: 35px; font-weight: bold; border-radius: 5px;");
+    
+    stopBtn = new QPushButton("ПЛАНОВЫЙ СТОП");
+    stopBtn->setStyleSheet("background-color: #d2691e; color: white; height: 35px; font-weight: bold; border-radius: 5px;");
+    
+    connect(startBtn, &QPushButton::clicked, this, &MainWindow::handleStart);
+    connect(stopBtn, &QPushButton::clicked, this, &MainWindow::handleStop);
+    
+    ctrlLayout->addWidget(startBtn);
+    ctrlLayout->addWidget(stopBtn);
+    mainLayout->addLayout(ctrlLayout);
+
     auto *tabs = new QTabWidget();
 
     // --- Вкладка Питания ---
@@ -24,22 +40,22 @@ void MainWindow::setupUI() {
     auto *pLayout = new QVBoxLayout(powerTab);
     
     // Блок установки тока
-    auto *ctrlLayout = new QHBoxLayout();
+    auto *currLayout = new QHBoxLayout();
     currentSpinBox = new QDoubleSpinBox();
     currentSpinBox->setRange(-300, 300);
     auto *setBtn = new QPushButton("Установить ток");
     connect(setBtn, &QPushButton::clicked, this, &MainWindow::handleSetCurrent);
-    ctrlLayout->addWidget(new QLabel("Целевой ток (А):"));
-    ctrlLayout->addWidget(currentSpinBox);
-    ctrlLayout->addWidget(setBtn);
-    pLayout->addLayout(ctrlLayout);
+    currLayout->addWidget(new QLabel("Целевой ток (А):"));
+    currLayout->addWidget(currentSpinBox);
+    currLayout->addWidget(setBtn);
+    pLayout->addLayout(currLayout);
 
     // Блок лампочек
     auto *statusLayout = new QHBoxLayout();
-    QString ledStyle = "border-radius: 10px; min-width: 20px; min-height: 20px; background-color: gray;";
-    powerLed = new QLabel("ПИТАНИЕ"); powerLed->setStyleSheet(ledStyle); powerLed->setAlignment(Qt::AlignCenter);
-    phaseErrLed = new QLabel("ОШИБКА ФАЗ"); phaseErrLed->setStyleSheet(ledStyle); phaseErrLed->setAlignment(Qt::AlignCenter);
-    invErrLed = new QLabel("ОШИБКА ИНВ"); invErrLed->setStyleSheet(ledStyle); invErrLed->setAlignment(Qt::AlignCenter);
+    QString ledStyle = "border-radius: 5px; min-width: 120px; min-height: 25px; background-color: gray; color: white; font-weight: bold; qproperty-alignment: 'AlignCenter';";
+    powerLed = new QLabel("ПИТАНИЕ"); powerLed->setStyleSheet(ledStyle);
+    phaseErrLed = new QLabel("ОШИБКА ФАЗ"); phaseErrLed->setStyleSheet(ledStyle);
+    invErrLed = new QLabel("ОШИБКА ИНВ"); invErrLed->setStyleSheet(ledStyle);
     
     statusLayout->addWidget(powerLed);
     statusLayout->addWidget(phaseErrLed);
@@ -72,13 +88,57 @@ void MainWindow::setupUI() {
     tabs->addTab(powerTab, "Питание");
     tabs->addTab(coolingTab, "Охлаждение");
 
-    auto *stopBtn = new QPushButton("ОБЩИЙ АВАРИЙНЫЙ СТОП");
-    stopBtn->setStyleSheet("background-color: darkred; color: white; height: 50px; font-weight: bold;");
-    connect(stopBtn, &QPushButton::clicked, this, &MainWindow::handleEmergency);
+    auto *emerStopBtn = new QPushButton("ОБЩИЙ АВАРИЙНЫЙ СТОП");
+    emerStopBtn->setStyleSheet("background-color: darkred; color: white; height: 50px; font-weight: bold; border-radius: 5px;");
+    connect(emerStopBtn, &QPushButton::clicked, this, &MainWindow::handleEmergency);
 
     mainLayout->addWidget(tabs);
-    mainLayout->addWidget(stopBtn);
+    mainLayout->addWidget(emerStopBtn);
     setCentralWidget(centralWidget);
+
+    // --- Уведомления ---
+    QScrollArea *scrollArea = new QScrollArea();
+    scrollArea->setWidgetResizable(true);
+    scrollArea->setFixedHeight(150); // Фиксированная высота "окна" логов
+    scrollArea->setStyleSheet("background-color: #1e1e1e; border: 1px solid #333;");
+
+    logContainer = new QWidget();
+    logLayout = new QVBoxLayout(logContainer);
+    logLayout->setAlignment(Qt::AlignTop); // Новые логи будут прижиматься к верху
+    logLayout->setContentsMargins(5, 5, 5, 5);
+    logLayout->setSpacing(2);
+
+    scrollArea->setWidget(logContainer);
+    mainLayout->addWidget(scrollArea); // Добавляем в самый низ главного компоновщика
+
+    setCentralWidget(centralWidget);
+}
+
+void MainWindow::onLogMessage(const QString& msg) {
+    // Создаем виджет для строки лога
+    // QLabel *label = new QLabel(QString("[%1] %2")
+    //                             .arg(QTime::currentTime().toString("hh:mm:ss"))
+    //                             .arg(msg));
+    
+    QLabel *label = new QLabel(QString("%1").arg(msg));
+
+    label->setWordWrap(true);
+    label->setStyleSheet("padding: 3px; border-bottom: 1px solid #2a2a2a; color: #dcdcdc; font-family: 'Consolas', 'Monaco', monospace;");
+
+    // Выделяем ошибки цветом
+    if (msg.contains("ОШИБКА") || msg.contains("АВАРИЯ") || msg.contains("Ошибка")) {
+        label->setStyleSheet(label->styleSheet() + "color: #ff6b6b; font-weight: bold;");
+    }
+
+    // Добавляем в начало списка (новое сверху)
+    logLayout->insertWidget(0, label);
+
+    // Таймер самоуничтожения через 5 секунд
+    // После удаления виджета Layout автоматически "подтянет" остальные элементы вверх
+    QTimer::singleShot(10000, label, &QLabel::deleteLater);
+    
+    // Также если надо дублируем в консоль для отладки (без буферизации)
+    // std::cout << label->text().toLocal8Bit().constData() << std::endl;
 }
 
 void MainWindow::onTimerTick() {
@@ -95,6 +155,10 @@ void MainWindow::onTimerTick() {
     time_axis += 0.1f;
 
     updateLamps(manager.getStatusFlags());
+
+    // Визуальная подсветка кнопок
+    startBtn->setEnabled(!manager.isOk());
+    stopBtn->setEnabled(manager.isOk());
 }
 
 void MainWindow::updateLamps(uint8_t status) {
@@ -105,6 +169,14 @@ void MainWindow::updateLamps(uint8_t status) {
     setCol(powerLed, (status & 0x01), "lightgreen", "gray");   // 0 бит - статус включения
     setCol(invErrLed, (status & 0x08), "red", "gray");         // 3 бит - защита инвертора
     setCol(phaseErrLed, (status & 0x10), "red", "gray");       // 4 бит - защита фаз
+}
+
+void MainWindow::handleStart() {
+    manager.startSystem();
+}
+
+void MainWindow::handleStop() {
+    manager.stopSystem();
 }
 
 void MainWindow::handleSetCurrent() {

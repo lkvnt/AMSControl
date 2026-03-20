@@ -24,6 +24,8 @@ set(SOURCES
     QtUI.h
     Manager.cpp
     Manager.h
+    CanBusManager.h
+    CanBusManager.cpp
     PowerControl.cpp
     PowerControl.h
     CoolControl.cpp
