@@ -4,8 +4,8 @@
 #include "PowerControl.h"
 #include "CoolControl.h"
 
-/**
- * @brief Класс SystemManager объединяет все подсистемы установки.
+/*
+ * Класс SystemManager объединяет все подсистемы установки.
  * Реализует логику безопасности (Interlocks) и предоставляет единый интерфейс для UI.
  */
 class SystemManager {
@@ -24,12 +24,13 @@ public:
     void setCurrent(float amperes);
 
     // --- Геттеры для интерфейса (получение текущих значений) ---
-    float getTemp() { return cooling.getTemperature(); }
-    float getFlow() { return cooling.getFlowRate(); }
-    float getCurrent() { return power.getCurrent(); }
+    float getTemp();
+    float getFlow();
+    float getCurrent();
 
     // Состояние системы для индикации в UI
     bool isOk() const { return is_system_ok; }
+    uint8_t getStatusFlags();
 
 private:
     PowerSupplyController power;
@@ -38,7 +39,7 @@ private:
     bool is_system_ok;
     
     // Внутренние методы проверки условий
-    void checkInterlocks(float flow, float temp);
+    void checkInterlocks(float flow, float temp, uint8_t power_status);
 };
 
 #endif // SYSTEM_MANAGER_H

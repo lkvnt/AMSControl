@@ -10,7 +10,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # 1. Ищем Qt 6
-find_package(Qt6 REQUIRED COMPONENTS Widgets)
+find_package(Qt6 REQUIRED COMPONENTS Widgets Charts)
 
 # 2. Подключаем сторонние библиотеки (ADLINK)
 # Укажите путь к папке с заголовками и .lib файлом ADLINK
@@ -34,6 +34,9 @@ set(SOURCES
 add_executable(AMSControl ${SOURCES})
 
 # 5. Линковка библиотек
-# Qt6::Widgets — это база для интерфейса
-# Pci7841 — имя библиотеки ADLINK (замените на точное имя вашего .lib/.a файла)
-target_link_libraries(AMSControl PRIVATE Qt6::Widgets 7841_x64)
+target_link_libraries(AMSControl PRIVATE Qt6::Widgets Qt6::Charts 7841_x64)
+
+# Копирование необходимых DLL (для Windows) при сборке
+if(WIN32)
+    qt_finalize_executable(AMSControl)
+endif()

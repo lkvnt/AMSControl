@@ -4,11 +4,11 @@
 CoolingController::CoolingController() {}
 
 void CoolingController::setPumpState(bool start) {
-    std::cout << "[Cooling] Насос: " << (start ? "ВКЛ" : "ВЫКЛ") << std::endl;
+    std::cout << "[Cooling] Pump is: " << (start ? "ON" : "OFF") << std::endl;
 }
 
 void CoolingController::setCoolerState(bool start) {
-    std::cout << "[Cooling] Кулер: " << (start ? "ВКЛ" : "ВЫКЛ") << std::endl;
+    std::cout << "[Cooling] Cooling is: " << (start ? "ON" : "OFF") << std::endl;
 }
 
 float CoolingController::getTemperature() {
@@ -20,7 +20,7 @@ float CoolingController::getFlowRate() {
 }
 
 void CoolingController::emergencyStop() {
-    std::cout << "[Cooling] !!! ОХЛАЖДЕНИЕ ОСТАНОВЛЕНО !!!" << std::endl;
+    std::cout << "[Cooling] !!! COOLING IS OFF !!!" << std::endl;
 }
 
 void CoolingController::sendFrame(const CAN_Frame& frame) {

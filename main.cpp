@@ -3,23 +3,18 @@
 
 int main(int argc, char *argv[])
 {
-    // 1. Создаем объект приложения. 
-    // Он управляет ресурсами системы и очередью сообщений.
-    QApplication app(argc, argv);
+    // Настройка атрибутов для корректного отображения графиков на High DPI мониторах
+    QApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
+    QApplication::setAttribute(Qt::AA_UseHighDpiPixmaps);
 
-    // Установка метаданных (полезно для настроек и логирования)
-    QApplication::setApplicationName("Power & Cooling Control System");
-    QApplication::setApplicationVersion("1.0.0");
+    QApplication a(argc, argv);
 
-    // 2. Создаем экземпляр вашего главного окна.
-    // Внутри конструктора MainWindow должна быть логика 
-    // инициализации SystemManager и вкладок.
-    MainWindow window;
+    // Установка имени приложения (полезно для настроек и заголовков)
+    a.setApplicationName("Power Supply Control System (VCH-300)");
+    a.setApplicationVersion("1.0.0");
 
-    // 3. Отображаем окно на экране
-    window.show();
+    MainWindow w;
+    w.show();
 
-    // 4. Запускаем цикл обработки событий. 
-    // Программа будет работать, пока вы не закроете окно.
-    return app.exec();
+    return a.exec();
 }

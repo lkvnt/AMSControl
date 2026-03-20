@@ -7,6 +7,8 @@
 #include <QPushButton>
 #include <QDoubleSpinBox>
 #include <QTimer>
+#include <QtCharts/QChartView>
+#include <QtCharts/QLineSeries>
 #include "Manager.h"
 
 class MainWindow : public QMainWindow {
@@ -14,23 +16,30 @@ class MainWindow : public QMainWindow {
 
 public:
     MainWindow(QWidget *parent = nullptr);
-    ~MainWindow() = default;
 
 private slots:
-    void onTimerTick();          // Обновление данных на экране
-    void handleSetCurrent();     // Кнопка установки тока
-    void handleEmergency();      // Кнопка общего стопа
+    void onTimerTick();          
+    void handleSetCurrent();     
+    void handleEmergency();      
 
 private:
     void setupUI();
+    void updateLamps(uint8_t status);
     
     SystemManager manager;
     QTimer *updateTimer;
 
-    // Виджеты для отображения данных
     QLabel *tempLabel;
     QLabel *flowLabel;
     QDoubleSpinBox *currentSpinBox;
+    
+    // Элементы статуса и графиков
+    QLabel *powerLed;
+    QLabel *phaseErrLed;
+    QLabel *invErrLed;
+    QLineSeries *currentSeries;
+    QChart *currentChart;
+    float time_axis;
 };
 
-#endif
+#endif // QTUI_H
