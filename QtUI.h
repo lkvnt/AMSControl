@@ -10,6 +10,7 @@
 #include <QVBoxLayout>
 #include <QtCharts/QChartView>
 #include <QtCharts/QLineSeries>
+#include <QListWidget>
 #include "Manager.h"
 
 class MainWindow : public QMainWindow {
@@ -24,11 +25,14 @@ private slots:
     void handleStart();
     void handleStop();
     void onLogMessage(const QString& msg);
+    void onLogFileDoubleClicked(QListWidgetItem *item);
+    void refreshLogList();
     void onBusyStateChanged(bool isBusy);
 
 private:
     void setupUI();
     void updateLamps(uint8_t status);
+    void saveLogToFile(const QString& formattedMsg);
     
     SystemManager manager;
     QTimer *updateTimer;
@@ -59,6 +63,7 @@ private:
 
     QVBoxLayout *logLayout;
     QWidget *logContainer;
+    QListWidget *logFileList;
 };
 
 #endif // QTUI_H

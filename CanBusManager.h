@@ -5,7 +5,11 @@
 #include <QTimer>
 #include <vector>
 #include <cstdint>
+
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
 #include <windows.h>
+
 #include "Pci7841.h"
 
 class CanBusManager : public QObject {

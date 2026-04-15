@@ -1,7 +1,12 @@
-#include "QtUI.h"
 #include <QHBoxLayout>
 #include <QStatusBar>
 #include <QDateTime>
+#include <QFile>
+#include <QDir>
+#include <QTextStream>
+#include <QDesktopServices>
+#include <QUrl>
+#include "QtUI.h"
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), time_axis(0.0f), updateFreq(10.0f) {
     setupUI();
@@ -143,8 +148,33 @@ void MainWindow::setupUI() {
     cLayout->addWidget(flowLabel);
     cLayout->addStretch();
 
+    // --- Вкладка Логов ---
+    auto *historyTab = new QWidget();
+    auto *hLayout = new QVBoxLayout(historyTab);
+    
+    QLabel *hLabel = new QLabel("История логов (двойной клик для открытия):");
+    logFileList = new QListWidget();
+    
+    // Стилизуем список под темную тему
+    logFileList->setStyleSheet(
+        "QListWidget { background-color: #1e1e1e; color: #dcdcdc; border: 1px solid #333; font-family: 'Consolas'; }"
+        "QListWidget::item { padding: 5px; border-bottom: 1px solid #2a2a2a; }"
+        "QListWidget::item:hover { background-color: #333; }"
+    );
+
+    connect(logFileList, &QListWidget::itemDoubleClicked, this, &MainWindow::onLogFileDoubleClicked);
+
+    hLayout->addWidget(hLabel);
+    hLayout->addWidget(logFileList);
+    
+    // Добавляем кнопку обновления списка
+    QPushButton *refreshBtn = new QPushButton("Обновить список");
+    connect(refreshBtn, &QPushButton::clicked, this, &MainWindow::refreshLogList);
+    hLayout->addWidget(refreshBtn);
+
     tabs->addTab(powerTab, "Питание");
     tabs->addTab(coolingTab, "Охлаждение");
+    tabs->addTab(historyTab, "Логи");
 
 
     mainLayout->addWidget(tabs);
@@ -166,6 +196,8 @@ void MainWindow::setupUI() {
     mainLayout->addWidget(scrollArea); // Добавляем в самый низ главного компоновщика
 
     setCentralWidget(centralWidget);
+
+    refreshLogList();
 }
 
 void MainWindow::onLogMessage(const QString& msg) {
@@ -188,9 +220,53 @@ void MainWindow::onLogMessage(const QString& msg) {
     // Таймер самоуничтожения через 5 секунд
     // После удаления виджета Layout автоматически "подтянет" остальные элементы вверх
     QTimer::singleShot(10000, label, &QLabel::deleteLater);
+
+    // Сохранение в файл
+    saveLogToFile(fullMsg);
+}
+
+void MainWindow::saveLogToFile(const QString& formattedMsg) {
+    // Создаем папку Logs, если её нет
+    QDir dir;
+    if (!dir.exists("Logs")) {
+        dir.mkdir("Logs");
+    }
+
+    // Формируем имя файла DD-MM-YYYY.txt
+    QString fileName = QDateTime::currentDateTime().toString("dd-MM-yyyy") + ".txt";
+    QFile file("Logs/" + fileName);
+
+    // Открываем в режиме Append (дозапись)
+    if (file.open(QIODevice::Append | QIODevice::Text)) {
+        QTextStream out(&file);
+        // out.setEncoding(QStringConverter::Encoding::Utf8); // Для корректной поддержки кириллицы
+        out << formattedMsg << "\n";
+        file.close();
+    }
+}
+
+void MainWindow::refreshLogList() {
+    logFileList->clear();
     
-    // Также если надо дублируем в консоль для отладки (без буферизации)
-    // std::cout << label->text().toLocal8Bit().constData() << std::endl;
+    QDir dir("Logs");
+    if (!dir.exists()) return;
+
+    // Получаем список .txt файлов, сортируем по дате (новые сверху)
+    dir.setNameFilters(QStringList() << "*.txt");
+    dir.setFilter(QDir::Files);
+    dir.setSorting(QDir::Time);
+
+    QFileInfoList list = dir.entryInfoList();
+    for (int i = 0; i < list.size(); ++i) {
+        logFileList->addItem(list.at(i).fileName());
+    }
+}
+
+void MainWindow::onLogFileDoubleClicked(QListWidgetItem *item) {
+    QString filePath = QDir::currentPath() + "/Logs/" + item->text();
+    
+    // Открываем файл встроенными средствами ОС (Блокнот, TextEdit и т.д.)
+    QDesktopServices::openUrl(QUrl::fromLocalFile(filePath));
 }
 
 void MainWindow::onTimerTick() {
