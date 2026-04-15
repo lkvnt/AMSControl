@@ -17,24 +17,31 @@ public:
     void setPowerState(bool turnOn);
     void setCurrent(float amperes);
     void resetProtection();
-    void emergencyStop();
-    
-    void requestData();
-    void processRequestCanPacket(const CAN_PACKET& rcv);
+
+    void requestRegisters();
+
+    void processADCData(const CAN_PACKET& rcv);
+    void processRegisterData(const CAN_PACKET& rcv);
 
     float getCurrent() const { return current_actual; }
+    float getAdcVoltage() const { return voltage_actual; }
     uint8_t getStatusFlags() const { return status_flags; }
+
+    uint32_t getTargetId() const;
+    bool isMyReply(uint32_t can_id) const;
+    bool isDeviceBusy() const { return isBusy; }
 
 signals:
     void logMessage(const QString& msg);
+    void deviceBusyStateChanged(bool isBusy);
 
 private:
     CanBusManager* can;
     uint8_t dev_id;
     float current_actual;
+    float voltage_actual;
     uint8_t status_flags;
-
-    uint32_t getTargetId() const;
+    bool isBusy;
 };
 
 #endif

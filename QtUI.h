@@ -21,10 +21,10 @@ public:
 private slots:
     void onTimerTick();          
     void handleSetCurrent();     
-    void handleEmergency();    
     void handleStart();
     void handleStop();
     void onLogMessage(const QString& msg);
+    void onBusyStateChanged(bool isBusy);
 
 private:
     void setupUI();
@@ -36,11 +36,18 @@ private:
     QLabel *tempLabel;
     QLabel *flowLabel;
     QDoubleSpinBox *currentSpinBox;
+    QPushButton *setBtn;
+
+    QLabel *currentValLabel;
+    QLabel *adcVoltLabel;
     
     // Элементы статуса и графиков
     QLabel *powerLed;
-    QLabel *phaseErrLed;
+    QLabel *outProt1Led;
+    QLabel *outProt2Led;
+    QLabel *tempProtLed;
     QLabel *invErrLed;
+    QLabel *phaseErrLed;
 
     QPushButton *startBtn;
     QPushButton *stopBtn;
@@ -48,6 +55,7 @@ private:
     QLineSeries *currentSeries;
     QChart *currentChart;
     float time_axis;
+    float updateFreq;
 
     QVBoxLayout *logLayout;
     QWidget *logContainer;

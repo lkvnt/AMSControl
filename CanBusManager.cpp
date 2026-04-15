@@ -1,7 +1,10 @@
 #include "CanBusManager.h"
 #include <QString>
 
-CanBusManager::CanBusManager(QObject* parent) : QObject(parent), card_handle(-1) {}
+CanBusManager::CanBusManager(QObject* parent) : QObject(parent), card_handle(-1) {
+    pollTimer = new QTimer(this);
+    connect(pollTimer, &QTimer::timeout, this, &CanBusManager::pollCanBus);
+}
 
 CanBusManager::~CanBusManager() {
     close();
@@ -23,17 +26,21 @@ bool CanBusManager::init(int card, int port) {
     port_cfg.baudrate = 0; // 125 Kbps         
     
     if (CanConfigPort(card_handle, &port_cfg) != 0) {
-        emit logMessage("CAN: Port config error.");
+        emit logMessage("CAN: Port config error!");
         close();
         return false;
     }
     
     CanEnableReceive(card_handle);
     emit logMessage("CAN: Init success.");
+
+    pollTimer->start(10);
+
     return true;
 }
 
 void CanBusManager::close() {
+    pollTimer->stop();
     if (card_handle >= 0) {
         emit logMessage("CAN: Port closing...");
         CanCloseDriver(card_handle);
@@ -55,7 +62,12 @@ bool CanBusManager::sendCommand(uint32_t target_id, uint8_t cmd, const std::vect
     return CanSendMsg(card_handle, &pkg) == 0;
 }
 
-bool CanBusManager::receivePacket(CAN_PACKET& out_packet) {
-    if (card_handle < 0) return false;
-    return CanRcvMsg(card_handle, &out_packet) == 0;
+void CanBusManager::pollCanBus() {
+    if (card_handle < 0) return;
+    
+    CAN_PACKET pkt;
+    // Вычитываем все пакеты из буфера драйвера, пока они там есть
+    while (CanRcvMsg(card_handle, &pkt) == 0) {
+        emit packetReceived(pkt);
+    }
 }
