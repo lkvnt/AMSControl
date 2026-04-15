@@ -9,17 +9,18 @@
 class PowerSupplyController : public QObject {
     Q_OBJECT
 public:
-    explicit PowerSupplyController(uint8_t deviceId = 1, QObject* parent = nullptr);
+    explicit PowerSupplyController(uint8_t deviceId = 0b010110, QObject* parent = nullptr);
     ~PowerSupplyController() = default;
 
     void setCanInterface(CanBusManager* can_interface);
 
     void setPowerState(bool turnOn);
     void setCurrent(float amperes);
+    void resetProtection();
     void emergencyStop();
     
     void requestData();
-    void processCanPacket(const CAN_PACKET& rcv);
+    void processRequestCanPacket(const CAN_PACKET& rcv);
 
     float getCurrent() const { return current_actual; }
     uint8_t getStatusFlags() const { return status_flags; }

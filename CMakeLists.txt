@@ -9,6 +9,10 @@ set(CMAKE_AUTOUIC ON)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+if(MSVC)
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded")
+endif()
+
 # 1. Ищем Qt 6
 find_package(Qt6 REQUIRED COMPONENTS Widgets Charts)
 

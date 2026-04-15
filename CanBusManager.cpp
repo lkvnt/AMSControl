@@ -20,7 +20,7 @@ bool CanBusManager::init(int card, int port) {
     port_cfg.mode = 0;              
     port_cfg.accCode = 0;
     port_cfg.accMask = 0x7FF;       
-    port_cfg.baudrate = 3; // 1 Mbps         
+    port_cfg.baudrate = 0; // 125 Kbps         
     
     if (CanConfigPort(card_handle, &port_cfg) != 0) {
         emit logMessage("CAN: Port config error.");

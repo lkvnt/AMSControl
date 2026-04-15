@@ -28,9 +28,35 @@ void SystemManager::startSystem() {
     cooling.setPumpState(true);
     cooling.setCoolerState(true);
     
+    power.resetProtection();
     power.setPowerState(true);
+
+    emit logMessage("Updating...");
+    update();
+    uint8_t status = power.getStatusFlags();
+    if (status == 0x01) {
+        emit logMessage("SystemManager: System started successfully.");
+    }
+    else {
+        if (status & 0x02) {
+            emit logMessage("SystemManager: Out protection 1!.");
+        }
+        if (status & 0x04) {
+            emit logMessage("SystemManager: Out protection 2!.");
+        }
+        if (status & 0x08) {
+            emit logMessage("SystemManager: Temperature protection!.");
+        }
+        if (status & 0x10) {
+            emit logMessage("SystemManager: Invertor error!.");
+        }
+        if (status & 0x20) {
+            emit logMessage("SystemManager: Phases error!.");
+        }
+        return;
+    }
+
     is_system_ok = true;
-    emit logMessage("SystemManager: System started successfully.");
 }
 
 void SystemManager::stopSystem() {
@@ -47,13 +73,14 @@ void SystemManager::stopSystem() {
 }
 
 void SystemManager::update() {
-    if (!is_system_ok || !canBus.isOpen()) return;
+    // if (!is_system_ok || !canBus.isOpen()) return;
+    if (!canBus.isOpen()) return;
 
     power.requestData(); 
 
     CAN_PACKET rcv;
     while (canBus.receivePacket(rcv)) {
-        power.processCanPacket(rcv);
+        power.processRequestCanPacket(rcv);
         // Здесь можно будет добавлять обработку пакетов для других подсистем (например, охлаждения)
     }
 
@@ -71,8 +98,8 @@ void SystemManager::checkInterlocks(float flow, float temp, uint8_t power_status
         alarm = true;
         emit logMessage("ALARM: Overheating!");
     }
-    // Бит 1 (OutProt), Бит 2 (TempProt), Бит 3 (InvertProt), Бит 4 (PhaseProt)
-    if (power_status & 0x1E) {
+    // Бит 1-2 (OutProt), Бит 3 (TempProt), Бит 4 (InvertProt), Бит 5 (PhaseProt)
+    if (power_status & 0x2E) {
         alarm = true; 
         emit logMessage("ALARM: Power unit hardware defence!");
     }

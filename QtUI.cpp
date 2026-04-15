@@ -42,7 +42,7 @@ void MainWindow::setupUI() {
     // Блок установки тока
     auto *currLayout = new QHBoxLayout();
     currentSpinBox = new QDoubleSpinBox();
-    currentSpinBox->setRange(-300, 300);
+    currentSpinBox->setRange(0, 300);
     auto *setBtn = new QPushButton("Установить ток");
     connect(setBtn, &QPushButton::clicked, this, &MainWindow::handleSetCurrent);
     currLayout->addWidget(new QLabel("Целевой ток (А):"));
@@ -167,8 +167,8 @@ void MainWindow::updateLamps(uint8_t status) {
     };
     
     setCol(powerLed, (status & 0x01), "lightgreen", "gray");   // 0 бит - статус включения
-    setCol(invErrLed, (status & 0x08), "red", "gray");         // 3 бит - защита инвертора
-    setCol(phaseErrLed, (status & 0x10), "red", "gray");       // 4 бит - защита фаз
+    setCol(invErrLed, (status & 0x10), "red", "gray");         // 4 бит - защита инвертора
+    setCol(phaseErrLed, (status & 0x20), "red", "gray");       // 5 бит - защита фаз
 }
 
 void MainWindow::handleStart() {
