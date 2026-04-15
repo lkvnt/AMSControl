@@ -16,6 +16,9 @@ public:
     explicit SystemManager(QObject* parent = nullptr);
     ~SystemManager();
 
+    // Инициализация PCI-7841
+    void initHardware();
+
     // --- Логика управления ---
     void startSystem();      // Последовательный запуск (сначала охлаждение)
     void stopSystem();       // Плановый останов

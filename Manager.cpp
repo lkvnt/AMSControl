@@ -12,16 +12,6 @@ SystemManager::SystemManager(QObject* parent) : QObject(parent), is_system_ok(fa
 
     // Проброс сигнала занятости дальше
     connect(&power, &PowerSupplyController::deviceBusyStateChanged, this, &SystemManager::busyStateChanged);
-
-    
-    emit logMessage("SystemManager: Objects created.");
-
-    if (!canBus.init()) {
-        emit logMessage("SystemManager: Warning! Could not open PCI-7841 driver. Check the device.");
-    } else {
-        power.setCanInterface(&canBus);
-        emit logMessage("SystemManager: CAN-bus is ready.");
-    }
 }
 
 SystemManager::~SystemManager() {
@@ -29,14 +19,26 @@ SystemManager::~SystemManager() {
     canBus.close();
 }
 
+void SystemManager::initHardware() {
+    emit logMessage("SystemManager: Objects created.");
+
+    if (!canBus.init()) {
+        emit logMessage("SystemManager: Warning! Could not open PCI-7841 driver. Check the device.");
+    } else {
+        power.setCanInterface(&canBus);
+        emit logMessage("SystemManager: CAN-bus is ready.");
+        
+        // "Прогрев" драйвера (пустой пакет)
+        canBus.sendCommand(0x7FF, 0x00, {}); 
+    }
+}
+
 void SystemManager::startSystem() {
     if (startup_step != 0 || is_system_ok) return;
 
-    
     if (!canBus.isOpen()) {
         emit logMessage("SystemManager: Warning! CAN is not initialized. Stopping.");
         return;
-        
     }
     
     power.setCanInterface(&canBus);

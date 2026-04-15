@@ -15,6 +15,10 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), time_axis(0.0f), 
     updateTimer = new QTimer(this);
     connect(updateTimer, &QTimer::timeout, this, &MainWindow::onTimerTick);
     updateTimer->start(1000.0 / updateFreq);
+
+    QTimer::singleShot(200, this, [this]() {
+        manager.initHardware();
+    });
 }
 
 void MainWindow::setupUI() {
