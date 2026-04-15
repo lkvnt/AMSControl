@@ -51,7 +51,7 @@ private:
     CoolingController cooling;
     
     bool is_system_ok;
-    int startup_step; // 0 - простой, 1 - ждем пинг FF, 2 - процесс запуска
+    int startup_step; // 0 - простой, 1 - ждем пинг FF, 2 - сброс ошибок, 3 - попытка включения, 4 - проверка статуса
     
     void continueStartSystem();
 
