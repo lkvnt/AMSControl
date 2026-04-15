@@ -1,6 +1,7 @@
 #include "QtUI.h"
 #include <QHBoxLayout>
 #include <QStatusBar>
+#include <QDateTime>
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), time_axis(0.0f), updateFreq(10.0f) {
     setupUI();
@@ -27,15 +28,45 @@ void MainWindow::setupUI() {
 
     // --- Панель управления запуском ---
     auto *ctrlLayout = new QHBoxLayout();
+
+    QString baseButtonStyle = 
+        "QPushButton {"
+        "  border: 1px solid #555;"
+        "  border-radius: 5px;"
+        "  padding: 5px;"
+        "  background-color: #444;" // Базовый цвет для обычных кнопок
+        "  color: white;"
+        "}"
+        "QPushButton:hover:enabled {"
+        "  background-color: #5a5a5a;" // Подсветка при наведении для обычных кнопок
+        "  border: 1px solid #888;"    // Светлая рамка при наведении
+        "}"
+        "QPushButton:pressed {"
+        "  background-color: #1a1a1a;"
+        "  padding-left: 7px; padding-top: 7px;"
+        "  border: 1px solid #333;"
+        "}"
+        "QPushButton:disabled {"
+        "  background-color: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #333, stop:0.5 #444, stop:1 #333);"
+        "  color: #777;"
+        "  border: 1px dashed #555;"
+        "}";
+
     startBtn = new QPushButton("ЗАПУСК СИСТЕМЫ");
-    startBtn->setStyleSheet("background-color: #2e8b57; color: white; height: 35px; font-weight: bold; border-radius: 5px;");
+    startBtn->setStyleSheet(baseButtonStyle + 
+        "QPushButton:enabled { background-color: #2e8b57; font-weight: bold; height: 35px; } "
+        "QPushButton:hover:enabled { background-color: #3cb371; border: 1px solid #fff; }");
     
     stopBtn = new QPushButton("СТОП СИСТЕМЫ");
-    stopBtn->setStyleSheet("background-color: #d2691e; color: white; height: 35px; font-weight: bold; border-radius: 5px;");
+    stopBtn->setStyleSheet(baseButtonStyle + 
+        "QPushButton:enabled { background-color: #d2691e; font-weight: bold; height: 35px; } "
+        "QPushButton:hover:enabled { background-color: #e67e22; border: 1px solid #fff; }");
     
     connect(startBtn, &QPushButton::clicked, this, &MainWindow::handleStart);
     connect(stopBtn, &QPushButton::clicked, this, &MainWindow::handleStop);
     
+    stopBtn->setEnabled(false);
+
     ctrlLayout->addWidget(startBtn);
     ctrlLayout->addWidget(stopBtn);
     mainLayout->addLayout(ctrlLayout);
@@ -51,7 +82,10 @@ void MainWindow::setupUI() {
     currentSpinBox = new QDoubleSpinBox();
     currentSpinBox->setRange(0, 300);
     setBtn = new QPushButton("Установить ток");
+    setBtn->setStyleSheet(baseButtonStyle);
     connect(setBtn, &QPushButton::clicked, this, &MainWindow::handleSetCurrent);
+    setBtn->setEnabled(false);
+    currentSpinBox->setEnabled(false);
     currLayout->addWidget(new QLabel("Целевой ток (А):"));
     currLayout->addWidget(currentSpinBox);
     currLayout->addWidget(setBtn);
@@ -135,7 +169,10 @@ void MainWindow::setupUI() {
 }
 
 void MainWindow::onLogMessage(const QString& msg) {
-    QLabel *label = new QLabel(QString("%1").arg(msg));
+    QString timeStr = QDateTime::currentDateTime().toString("hh:mm:ss.zzz");
+    QString fullMsg = QString("[%1] %2").arg(timeStr, msg);
+
+    QLabel *label = new QLabel(fullMsg);
 
     label->setWordWrap(true);
     label->setStyleSheet("padding: 3px; border-bottom: 1px solid #2a2a2a; color: #dcdcdc; font-family: 'Consolas', 'Monaco', monospace;");
