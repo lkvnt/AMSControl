@@ -11,7 +11,10 @@ SystemManager::SystemManager(QObject* parent) : QObject(parent), is_system_ok(fa
     connect(&canBus, &CanBusManager::packetReceived, this, &SystemManager::handleIncomingPacket);
 
     // Проброс сигнала занятости дальше
-    connect(&power, &PowerSupplyController::deviceBusyStateChanged, this, &SystemManager::busyStateChanged);
+    // connect(&power, &PowerSupplyController::deviceBusyStateChanged, this, &SystemManager::busyStateChanged);
+    connect(&power, &PowerSupplyController::deviceBusyStateChanged, this, [this]() {
+        emit busyStateChanged(this->isBusy());
+    });
 }
 
 SystemManager::~SystemManager() {
@@ -79,12 +82,12 @@ void SystemManager::continueStartSystem() {
             return; 
         }
 
-        // 3. Подаем питание (~ 200 мс)
+        // 3. Подаем питание (~ 500 мс)
         startup_step = 3;
         power.setPowerState(true);
 
-        // Проверяем финальный статус через 300 мс
-        QTimer::singleShot(300, this, [this]() {
+        // Проверяем финальный статус через 600 мс
+        QTimer::singleShot(600, this, [this]() {
             if (startup_step != 3) {
                 emit logMessage("SystemManager: Startup interrupted.");
                 return; 
@@ -107,6 +110,7 @@ void SystemManager::continueStartSystem() {
                     emit logMessage("SystemManager: System started successfully.");
                     is_system_ok = true;
                     startup_step = 0; // Завершили запуск
+                    emit busyStateChanged(false);
                 }
                 else if (status == 0x00) {
                     emit logMessage("SystemManager: Warning! Timeout for startup.");
@@ -140,7 +144,6 @@ void SystemManager::continueStartSystem() {
 
 void SystemManager::stopSystem() {
     startup_step = 0;
-    emit busyStateChanged(false);
     if (!is_system_ok && !canBus.isOpen()) return;
     
     emit logMessage("SystemManager: Shutting down...");
@@ -152,6 +155,7 @@ void SystemManager::stopSystem() {
     
     // canBus.close();
     is_system_ok = false;
+    emit busyStateChanged(false);
     emit logMessage("SystemManager: System is off.");
 }
 

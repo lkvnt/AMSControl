@@ -22,6 +22,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), time_axis(0.0f), 
     connect(updateTimer, &QTimer::timeout, this, &MainWindow::onTimerTick);
     updateTimer->start(1000.0 / updateFreq);
 
+    onBusyStateChanged(false);
     QTimer::singleShot(200, this, [this]() {
         manager.initHardware();
     });
@@ -70,7 +71,7 @@ void MainWindow::setupUI() {
     connect(startBtn, &QPushButton::clicked, this, &MainWindow::handleStart);
     connect(stopBtn, &QPushButton::clicked, this, &MainWindow::handleStop);
     
-    stopBtn->setEnabled(false);
+    // stopBtn->setEnabled(false);
 
     ctrlLayout->addWidget(startBtn);
     ctrlLayout->addWidget(stopBtn);
@@ -89,8 +90,8 @@ void MainWindow::setupUI() {
     setBtn = new QPushButton("Установить ток");
     setBtn->setStyleSheet(baseButtonStyle);
     connect(setBtn, &QPushButton::clicked, this, &MainWindow::handleSetCurrent);
-    setBtn->setEnabled(false);
-    currentSpinBox->setEnabled(false);
+    // setBtn->setEnabled(false);
+    // currentSpinBox->setEnabled(false);
     currLayout->addWidget(new QLabel("Целевой ток (А):"));
     currLayout->addWidget(currentSpinBox);
     currLayout->addWidget(setBtn);
