@@ -36,24 +36,19 @@ void PowerSupplyController::setPowerState(bool turnOn) {
     isBusy = true;
     emit deviceBusyStateChanged(true);
 
-    uint8_t state = turnOn ? 0x01 : 0x02; 
+    uint8_t state = turnOn ? 0x03 : 0x00; 
 
     can->sendCommand(getTargetId(), 0xF9, {state});
-    QTimer::singleShot(100, this, [this, turnOn]() {
+    QTimer::singleShot(500, this, [this, turnOn]() {
         if (!can) {
             emit logMessage("Power Control: Warning! CAN is not initialized.");
             isBusy = false;
             emit deviceBusyStateChanged(false);
             return;
         }
-        
-        can->sendCommand(getTargetId(), 0xF9, {0x00});
-        
-        QTimer::singleShot(100, this, [this, turnOn]() {
             isBusy = false;
             emit deviceBusyStateChanged(false);
             emit logMessage(turnOn ? "PowerControl: Command power on." : "PowerControl: Command power off.");
-        });
     });
 }
 
