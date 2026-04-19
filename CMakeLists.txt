@@ -34,6 +34,8 @@ set(SOURCES
     PowerControl.h
     CoolControl.cpp
     CoolControl.h
+    SensorControl.cpp
+    SensorControl.h
 )
 
 # 4. Создаем исполняемый файл

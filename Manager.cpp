@@ -6,6 +6,7 @@ SystemManager::SystemManager(QObject* parent) : QObject(parent), is_system_ok(fa
     connect(&canBus, &CanBusManager::logMessage, this, &SystemManager::logMessage);
     connect(&power, &PowerSupplyController::logMessage, this, &SystemManager::logMessage);
     connect(&cooling, &CoolingController::logMessage, this, &SystemManager::logMessage);
+    connect(&sensors, &SensorController::logMessage, this, &SystemManager::logMessage);
 
     // Парсер пакетов
     connect(&canBus, &CanBusManager::packetReceived, this, &SystemManager::handleIncomingPacket);
@@ -29,6 +30,7 @@ void SystemManager::initHardware() {
         emit logMessage("SystemManager: Warning! Could not open PCI-7841 driver. Check the device.");
     } else {
         power.setCanInterface(&canBus);
+        sensors.setCanInterface(&canBus);
         emit logMessage("SystemManager: CAN-bus is ready.");
         
         // "Прогрев" драйвера (пустой пакет)
@@ -69,6 +71,7 @@ void SystemManager::continueStartSystem() {
     
     // Включаем автоматический непрерывный репорт АЦП (0x30 - continuous)
     canBus.sendCommand(power.getTargetId(), 0x02, {0x00, 0x07, 0x30});
+    canBus.sendCommand(sensors.getTargetId(), 0x01, {0x00, 0x02, 0x07, 0x30, 0x00});
     
     // 2. Запускаем сброс защиты (~ 2100 мс)
     startup_step = 2;
@@ -160,28 +163,42 @@ void SystemManager::stopSystem() {
 }
 
 void SystemManager::handleIncomingPacket(const CAN_PACKET& pkt) {
-    if (!power.isMyReply(pkt.CAN_ID)) return;
+    if (power.isMyReply(pkt.CAN_ID)) {
+        uint8_t cmd = pkt.data[0];
 
-    uint8_t cmd = pkt.data[0];
+        switch(cmd) {
+            case 0x02:
+                power.processADCData(pkt);
+                break;
+            
+            case 0xF8:
+                power.processRegisterData(pkt);
+                break;
 
-    switch(cmd) {
-        case 0x02:
-            power.processADCData(pkt);
-            break;
-        
-        case 0xF8:
-            power.processRegisterData(pkt);
-            break;
-
-        case 0xFF:
-            if (startup_step == 1) {
-                startup_step = 2;
-                emit logMessage("SystemManager: CDAC responded.");
-                continueStartSystem();
-            }
-            break;
-        
-        default:
+            case 0xFF:
+                if (startup_step == 1) {
+                    startup_step = 2;
+                    emit logMessage("SystemManager: CDAC responded.");
+                    continueStartSystem();
+                }
+                break;
+            
+            default:
+                emit logMessage("SystemManager: Received unexpected data");
+                emit logMessage(QString("ID: %1 А").arg(QString::number(pkt.CAN_ID, 16)));
+                uint64_t data = 0;
+                for (int i = pkt.len; i != 0; i--) {
+                    data = pkt.data[i] << 8 * i;
+                }
+                emit logMessage(QString("Data: %1 А").arg(QString::number(data, 16)));
+                break;
+        }
+    }
+    else if (sensors.isMyReply(pkt.CAN_ID)) {
+        if (pkt.data[0] == 0x01) {
+            sensors.processADCData(pkt);
+        }
+        else {
             emit logMessage("SystemManager: Received unexpected data");
             emit logMessage(QString("ID: %1 А").arg(QString::number(pkt.CAN_ID, 16)));
             uint64_t data = 0;
@@ -189,7 +206,7 @@ void SystemManager::handleIncomingPacket(const CAN_PACKET& pkt) {
                 data = pkt.data[i] << 8 * i;
             }
             emit logMessage(QString("Data: %1 А").arg(QString::number(data, 16)));
-            break;
+        }
     }
 }
 
@@ -231,9 +248,3 @@ void SystemManager::setCurrent(float amperes) {
         emit logMessage("SystemManager: Warning! Trying to set current while system is off.");
     }
 }
-
-float SystemManager::getTemp() { return cooling.getTemperature(); }
-float SystemManager::getFlow() { return cooling.getFlowRate(); }
-float SystemManager::getCurrent() { return power.getCurrent(); }
-float SystemManager::getAdcVoltage() { return power.getAdcVoltage(); }
-uint8_t SystemManager::getStatusFlags() { return power.getStatusFlags(); }

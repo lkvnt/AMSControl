@@ -1,10 +1,11 @@
 #ifndef MANAGER_H
 #define MANAGER_H
 
+#include <QObject>
 #include "PowerControl.h"
 #include "CoolControl.h"
 #include "CanBusManager.h"
-#include <QObject>
+#include "SensorControl.h"
 
 /*
  * Класс SystemManager объединяет все подсистемы установки.
@@ -31,15 +32,18 @@ public:
     void setCurrent(float amperes);
 
     // --- Геттеры для интерфейса (получение текущих значений) ---
-    float getTemp();
-    float getFlow();
-    float getCurrent();
-    float getAdcVoltage();
+    float getTemp() const { return cooling.getTemperature(); }
+    float getFlow() const { return cooling.getFlowRate(); }
+    float getCurrent() const { return power.getCurrent(); }
+    float getAdcVoltage() const { return power.getAdcVoltage(); }
+    float getFaraday() const { return sensors.getFaradayVoltage(); }
+    float getHall() const { return sensors.getHallVoltage(); }
+    float getVacuum() const { return sensors.getVacuumVoltage(); }
 
     // Состояние системы для индикации в UI
     bool isOk() const { return is_system_ok; }
     bool isBusy() const { return power.isDeviceBusy() || startup_step > 0; }
-    uint8_t getStatusFlags();
+    uint8_t getStatusFlags() const { return power.getStatusFlags(); }
 
 signals:
     void logMessage(const QString& msg);
@@ -52,6 +56,7 @@ private:
     CanBusManager canBus;
     PowerSupplyController power;
     CoolingController cooling;
+    SensorController sensors;
     
     bool is_system_ok;
     int startup_step; // 0 - простой, 1 - ждем пинг FF, 2 - сброс ошибок, 3 - попытка включения, 4 - проверка статуса

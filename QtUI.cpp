@@ -6,6 +6,7 @@
 #include <QTextStream>
 #include <QDesktopServices>
 #include <QUrl>
+#include <QGroupBox>
 #include "QtUI.h"
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), time_axis(0.0f), updateFreq(10.0f) {
@@ -70,12 +71,36 @@ void MainWindow::setupUI() {
     
     connect(startBtn, &QPushButton::clicked, this, &MainWindow::handleStart);
     connect(stopBtn, &QPushButton::clicked, this, &MainWindow::handleStop);
-    
-    // stopBtn->setEnabled(false);
 
     ctrlLayout->addWidget(startBtn);
     ctrlLayout->addWidget(stopBtn);
     mainLayout->addLayout(ctrlLayout);
+
+    // --- Глобальная информация ---
+    QGroupBox *globalInfoBox = new QGroupBox("Основная информация системы");
+    globalInfoBox->setStyleSheet("QGroupBox { font-weight: bold; border: 1px solid #555; margin-top: 10px; } QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 3px; }");
+    auto *gLayout = new QHBoxLayout(globalInfoBox);
+    
+    globalCurrent = new QLabel("Ток: -- А");
+    globalCurrent->setStyleSheet("font-size: 18px; font-weight: bold; color: #4CAF50;");
+    
+    globalTemp = new QLabel("Темп: -- °C");
+    globalTemp->setStyleSheet("font-size: 18px; font-weight: bold; color: #2196F3;");
+    
+    globalPowerLed = new QLabel("ПИТАНИЕ");
+    globalPowerLed->setAlignment(Qt::AlignCenter);
+    
+    globalErrorLed = new QLabel("ОШИБКА");
+    globalErrorLed->setAlignment(Qt::AlignCenter);
+    
+    gLayout->addWidget(globalCurrent);
+    gLayout->addWidget(globalTemp);
+    gLayout->addStretch();
+    gLayout->addWidget(globalPowerLed);
+    gLayout->addWidget(globalErrorLed);
+    
+    mainLayout->addWidget(globalInfoBox);
+
 
     auto *tabs = new QTabWidget();
 
@@ -149,6 +174,26 @@ void MainWindow::setupUI() {
     cLayout->addWidget(flowLabel);
     cLayout->addStretch();
 
+    // --- Вкладка с общими измерениями ---
+    auto *sensorTab = new QWidget();
+    auto *sLayout = new QVBoxLayout(sensorTab);
+    
+    faradayLabel = new QLabel("Цилиндр Фарадея: -- В");
+    faradayLabel->setStyleSheet("font-size: 16px; margin: 5px;");
+    
+    hallLabel = new QLabel("Датчик Холла: -- мВ");
+    hallLabel->setStyleSheet("font-size: 16px; margin: 5px;");
+    
+    vacuumLabel = new QLabel("Вакуум: -- В");
+    vacuumLabel->setStyleSheet("font-size: 16px; margin: 5px;");
+    
+    sLayout->addWidget(faradayLabel);
+    sLayout->addWidget(hallLabel);
+    sLayout->addWidget(vacuumLabel);
+    sLayout->addStretch();
+
+    mainLayout->addWidget(tabs);
+
     // --- Вкладка Логов ---
     auto *historyTab = new QWidget();
     auto *hLayout = new QVBoxLayout(historyTab);
@@ -175,6 +220,7 @@ void MainWindow::setupUI() {
 
     tabs->addTab(powerTab, "Питание");
     tabs->addTab(coolingTab, "Охлаждение");
+    tabs->addTab(sensorTab, "Измерения");
     tabs->addTab(historyTab, "Логи");
 
 
@@ -272,7 +318,20 @@ void MainWindow::onLogFileDoubleClicked(QListWidgetItem *item) {
 
 void MainWindow::onTimerTick() {
     manager.update(); 
-    
+
+    // Обновление глобальной панели
+    globalCurrent->setText(QString("Ток: %1 А").arg(manager.getCurrent(), 0, 'f', 2));
+    globalTemp->setText(QString("Темп: %1 °C").arg(manager.getTemp(), 0, 'f', 1));
+
+    uint8_t status = manager.getStatusFlags();
+    bool isPowerOn = (status & 0x01);
+    bool hasError = (status & 0x3E) || !manager.isOk() && manager.isBusy(); // Адаптируйте логику ошибки под себя
+
+    QString ledStyle = "border-radius: 5px; min-width: 90px; min-height: 25px; font-weight: bold; font-size: 12px; color: white;";
+    globalPowerLed->setStyleSheet(ledStyle + (isPowerOn ? "background-color: green;" : "background-color: gray;"));
+    globalErrorLed->setStyleSheet(ledStyle + (hasError ? "background-color: red;" : "background-color: gray;"));
+
+    // Обновление охлаждения
     tempLabel->setText(QString("Температура: %1 °C").arg(manager.getTemp()));
     flowLabel->setText(QString("Поток: %1 л/мин").arg(manager.getFlow()));
 
@@ -289,6 +348,14 @@ void MainWindow::onTimerTick() {
     time_axis += 1.0 / updateFreq;
 
     updateLamps(manager.getStatusFlags());
+
+    // Обновление общих измерений
+    faradayLabel->setText(QString("Цилиндр Фарадея: %1 В").arg(manager.getFaraday(), 0, 'f', 4));
+    
+    // Датчик Холла умножаем на 1000, чтобы отобразить в милливольтах
+    hallLabel->setText(QString("Датчик Холла: %1 мВ").arg(manager.getHall() * 1000.0f, 0, 'f', 2));
+    
+    vacuumLabel->setText(QString("Вакуум: %1 В").arg(manager.getVacuum(), 0, 'f', 2));
 }
 
 void MainWindow::updateLamps(uint8_t status) {

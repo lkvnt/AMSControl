@@ -41,11 +41,18 @@ private:
     QLabel *flowLabel;
     QDoubleSpinBox *currentSpinBox;
     QPushButton *setBtn;
+    QLabel *faradayLabel;
+    QLabel *hallLabel;
+    QLabel *vacuumLabel;
 
     QLabel *currentValLabel;
     QLabel *adcVoltLabel;
     
     // Элементы статуса и графиков
+    QLabel *globalCurrent;
+    QLabel *globalTemp;
+    QLabel *globalPowerLed;
+    QLabel *globalErrorLed;
     QLabel *powerLed;
     QLabel *outProt1Led;
     QLabel *outProt2Led;

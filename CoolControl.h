@@ -10,8 +10,8 @@ public:
     CoolingController();
     void setPumpState(bool start);
     void setCoolerState(bool start);
-    float getTemperature();
-    float getFlowRate();
+    float getTemperature() const { return 24.5f; }
+    float getFlowRate() const { return 12.8f; }
     void emergencyStop();
 
 signals:
