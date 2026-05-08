@@ -1,9 +1,10 @@
 #include "PowerControl.h"
 
 PowerSupplyController::PowerSupplyController(uint8_t deviceId, QObject* parent) 
-    : QObject(parent), can(nullptr), dev_id(deviceId), current_actual(0.0f), status_flags(0) {}
+    : QObject(parent), can(nullptr), dev_id(deviceId), current_actual(0.0f), status_flags(0), isBusy(false) {}
 
 void PowerSupplyController::setCanInterface(CanBusManager* can_interface) {
+    if (can) return;
     can = can_interface;
     emit logMessage("Power Control: CAN interface connected.");
 }

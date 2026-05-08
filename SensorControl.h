@@ -9,7 +9,7 @@ class SensorController : public QObject {
     Q_OBJECT
 public:
     // Поменять на ID реальный
-    explicit SensorController(uint8_t deviceId = 0b010111, QObject* parent = nullptr);
+    explicit SensorController(uint8_t deviceId = 0b111110, QObject* parent = nullptr);
     ~SensorController() = default;
 
     void setCanInterface(CanBusManager* can_interface);
@@ -21,6 +21,8 @@ public:
     float getFaradayVoltage() const { return faraday_v; }
     float getHallVoltage() const { return hall_v; }
     float getVacuumVoltage() const { return vacuum_v; }
+
+    static float getPressFromVolt(float volt);
 
     uint32_t getTargetId() const;
     bool isMyReply(uint32_t can_id) const;

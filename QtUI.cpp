@@ -184,12 +184,16 @@ void MainWindow::setupUI() {
     hallLabel = new QLabel("Датчик Холла: -- мВ");
     hallLabel->setStyleSheet("font-size: 16px; margin: 5px;");
     
-    vacuumLabel = new QLabel("Вакуум: -- В");
-    vacuumLabel->setStyleSheet("font-size: 16px; margin: 5px;");
-    
+    vacuumVoltLabel = new QLabel("ВМБ-14 напряжение: -- В");
+    vacuumVoltLabel->setStyleSheet("font-size: 16px; margin: 5px;");
+
+    vacuumPressLabel = new QLabel("ВМБ-14 давление: -- Па");
+    vacuumPressLabel->setStyleSheet("font-size: 16px; margin: 5px;");
+
     sLayout->addWidget(faradayLabel);
     sLayout->addWidget(hallLabel);
-    sLayout->addWidget(vacuumLabel);
+    sLayout->addWidget(vacuumVoltLabel);
+    sLayout->addWidget(vacuumPressLabel);
     sLayout->addStretch();
 
     mainLayout->addWidget(tabs);
@@ -325,7 +329,7 @@ void MainWindow::onTimerTick() {
 
     uint8_t status = manager.getStatusFlags();
     bool isPowerOn = (status & 0x01);
-    bool hasError = (status & 0x3E) || !manager.isOk() && manager.isBusy(); // Адаптируйте логику ошибки под себя
+    bool hasError = (status & 0x3E) || !manager.isOk() && manager.isBusy();
 
     QString ledStyle = "border-radius: 5px; min-width: 90px; min-height: 25px; font-weight: bold; font-size: 12px; color: white;";
     globalPowerLed->setStyleSheet(ledStyle + (isPowerOn ? "background-color: green;" : "background-color: gray;"));
@@ -350,12 +354,26 @@ void MainWindow::onTimerTick() {
     updateLamps(manager.getStatusFlags());
 
     // Обновление общих измерений
-    faradayLabel->setText(QString("Цилиндр Фарадея: %1 В").arg(manager.getFaraday(), 0, 'f', 4));
+    faradayLabel->setText(QString("Цилиндр Фарадея: \t %1 В").arg(manager.getFaraday(), 0, 'f', 4));
     
     // Датчик Холла умножаем на 1000, чтобы отобразить в милливольтах
-    hallLabel->setText(QString("Датчик Холла: %1 мВ").arg(manager.getHall() * 1000.0f, 0, 'f', 2));
+    hallLabel->setText(QString("Датчик Холла: \t\t %1 мВ").arg(manager.getHall() * 1000.0f, 0, 'f', 2));
     
-    vacuumLabel->setText(QString("Вакуум: %1 В").arg(manager.getVacuum(), 0, 'f', 2));
+    float vacuum_v = manager.getVacuum();
+    vacuumVoltLabel->setText(QString("Вакуум (Вольт): \t %1 В").arg(vacuum_v, 0, 'f', 4));
+
+    vacuum_v = std::max(0.0f, std::min(10.0f, vacuum_v));
+    double pressure = SensorController::getPressFromVolt(vacuum_v);
+    if (pressure != 0) {
+        int exponent = std::floor(std::log10(pressure));
+        double mantissa = pressure / std::pow(10.0, exponent);
+        vacuumPressLabel->setText(QString("Вакуум (Давление): %1 * 10^%2 Па")
+                            .arg(mantissa, 0, 'f', 2)
+                            .arg(exponent));
+    }
+    else {
+        vacuumPressLabel->setText(QString("Вакуум (Давление): \t Напр. вне рабочего диапазона"));
+    }
 }
 
 void MainWindow::updateLamps(uint8_t status) {

@@ -43,7 +43,8 @@ private:
     QPushButton *setBtn;
     QLabel *faradayLabel;
     QLabel *hallLabel;
-    QLabel *vacuumLabel;
+    QLabel *vacuumVoltLabel;
+    QLabel *vacuumPressLabel;
 
     QLabel *currentValLabel;
     QLabel *adcVoltLabel;

@@ -45,8 +45,6 @@ void SystemManager::startSystem() {
         emit logMessage("SystemManager: Warning! CAN is not initialized. Stopping.");
         return;
     }
-    
-    power.setCanInterface(&canBus);
 
     emit logMessage("SystemManager: System start in process...");
     startup_step = 1;
@@ -151,10 +149,10 @@ void SystemManager::stopSystem() {
     
     emit logMessage("SystemManager: Shutting down...");
 
-    canBus.sendCommand(power.getTargetId(), 0x00, {}); // Выключаем измерения АЦП
     power.setPowerState(false);
     cooling.setPumpState(false);
     cooling.setCoolerState(false);
+    canBus.sendCommand(power.getTargetId(), 0x00, {}); // Выключаем измерения АЦП
     
     // canBus.close();
     is_system_ok = false;
@@ -220,7 +218,7 @@ void SystemManager::update() {
 }
 
 void SystemManager::checkInterlocks(float flow, float temp, uint8_t power_status) {
-    if (startup_step > 0) return; // Во время включения не проверяем
+    if (startup_step > 0 || !is_system_ok) return; // Когда выключена или включается не проверяем
 
     bool alarm = false;
     
