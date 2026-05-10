@@ -182,13 +182,7 @@ void SystemManager::handleIncomingPacket(const CAN_PACKET& pkt) {
                 break;
             
             default:
-                emit logMessage("SystemManager: Received unexpected data");
-                emit logMessage(QString("ID: %1 А").arg(QString::number(pkt.CAN_ID, 16)));
-                uint64_t data = 0;
-                for (int i = pkt.len; i != 0; i--) {
-                    data = pkt.data[i] << 8 * i;
-                }
-                emit logMessage(QString("Data: %1 А").arg(QString::number(data, 16)));
+                handleUnexpectedPacket(pkt);
                 break;
         }
     }
@@ -197,15 +191,21 @@ void SystemManager::handleIncomingPacket(const CAN_PACKET& pkt) {
             sensors.processADCData(pkt);
         }
         else {
-            emit logMessage("SystemManager: Received unexpected data");
-            emit logMessage(QString("ID: %1 А").arg(QString::number(pkt.CAN_ID, 16)));
-            uint64_t data = 0;
-            for (int i = pkt.len; i != 0; i--) {
-                data = pkt.data[i] << 8 * i;
-            }
-            emit logMessage(QString("Data: %1 А").arg(QString::number(data, 16)));
+            handleUnexpectedPacket(pkt);
         }
     }
+}
+
+void SystemManager::handleUnexpectedPacket(const CAN_PACKET& pkt) {
+    emit logMessage("SystemManager: Received unexpected data");
+    emit logMessage(QString("ID: 0x%1 А").arg(QString::number(pkt.CAN_ID, 16).toUpper()));
+
+    QString hexData;
+    uint64_t data = 0;
+    for (int i = 0; i < pkt.len; ++i) {
+        hexData += QString("%1 ").arg(pkt.data[i], 2, 16, QChar('0')).toUpper();
+    }
+    emit logMessage(QString("Data (HEX): %1").arg(hexData.trimmed()));
 }
 
 void SystemManager::update() {

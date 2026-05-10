@@ -11,6 +11,8 @@
 #include <QtCharts/QChartView>
 #include <QtCharts/QLineSeries>
 #include <QListWidget>
+#include <QJsonObject>
+#include <QJsonDocument>
 #include "Manager.h"
 
 class MainWindow : public QMainWindow {
@@ -28,6 +30,8 @@ private slots:
     void onLogFileDoubleClicked(QListWidgetItem *item);
     void refreshLogList();
     void onBusyStateChanged(bool isBusy);
+    void onDataLogTick();
+    void onDataFileDoubleClicked(QListWidgetItem *item);
 
 private:
     void setupUI();
@@ -36,6 +40,7 @@ private:
     
     SystemManager manager;
     QTimer *updateTimer;
+    QTimer *dataLogTimer;
 
     QLabel *tempLabel;
     QLabel *flowLabel;
@@ -72,6 +77,7 @@ private:
     QVBoxLayout *logLayout;
     QWidget *logContainer;
     QListWidget *logFileList;
+    QListWidget *dataFileList;
 };
 
 #endif // QTUI_H

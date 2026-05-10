@@ -36,6 +36,8 @@ set(SOURCES
     CoolControl.h
     SensorControl.cpp
     SensorControl.h
+    DataViewerWindow.h
+    DataViewerWindow.cpp
 )
 
 # 4. Создаем исполняемый файл

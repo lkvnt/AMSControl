@@ -7,6 +7,7 @@
 #include <QDesktopServices>
 #include <QUrl>
 #include <QGroupBox>
+#include "DataViewerWindow.h"
 #include "QtUI.h"
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), time_axis(0.0f), updateFreq(10.0f) {
@@ -21,7 +22,11 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), time_axis(0.0f), 
 
     updateTimer = new QTimer(this);
     connect(updateTimer, &QTimer::timeout, this, &MainWindow::onTimerTick);
-    updateTimer->start(1000.0 / updateFreq);
+    updateTimer->start(1000.0 / updateFreq); // Таймер обновления данных в интерфейсе
+
+    dataLogTimer = new QTimer(this);
+    connect(dataLogTimer, &QTimer::timeout, this, &MainWindow::onDataLogTick);
+    dataLogTimer->start(500); // Таймер логирования измерений
 
     onBusyStateChanged(false);
     QTimer::singleShot(200, this, [this]() {
@@ -200,12 +205,13 @@ void MainWindow::setupUI() {
 
     // --- Вкладка Логов ---
     auto *historyTab = new QWidget();
-    auto *hLayout = new QVBoxLayout(historyTab);
+    auto *hLayout = new QHBoxLayout();
     
-    QLabel *hLabel = new QLabel("История логов (двойной клик для открытия):");
+    // Тектовый формат логов
+    auto *textLogLayout = new QVBoxLayout();
+    textLogLayout->addWidget(new QLabel("Текстовые логи (двойной клик для открытия):"));
     logFileList = new QListWidget();
     
-    // Стилизуем список под темную тему
     logFileList->setStyleSheet(
         "QListWidget { background-color: #1e1e1e; color: #dcdcdc; border: 1px solid #333; font-family: 'Consolas'; }"
         "QListWidget::item { padding: 5px; border-bottom: 1px solid #2a2a2a; }"
@@ -214,13 +220,34 @@ void MainWindow::setupUI() {
 
     connect(logFileList, &QListWidget::itemDoubleClicked, this, &MainWindow::onLogFileDoubleClicked);
 
-    hLayout->addWidget(hLabel);
-    hLayout->addWidget(logFileList);
+    textLogLayout->addWidget(logFileList);
+
+    // JSON формат логов (с измерениями)
+    auto *dataLogLayout = new QVBoxLayout();
+    dataLogLayout->addWidget(new QLabel("Логи телеметрии (двойной клик - графики):"));
+    dataFileList = new QListWidget();
+
+    dataFileList->setStyleSheet(
+        "QListWidget { background-color: #1e1e1e; color: #dcdcdc; border: 1px solid #333; font-family: 'Consolas'; }"
+        "QListWidget::item { padding: 5px; border-bottom: 1px solid #2a2a2a; }"
+        "QListWidget::item:hover { background-color: #333; }"
+    );
+
+    connect(dataFileList, &QListWidget::itemDoubleClicked, this, &MainWindow::onDataFileDoubleClicked);
+
+    dataLogLayout->addWidget(dataFileList);
     
+    hLayout->addLayout(textLogLayout);
+    hLayout->addLayout(dataLogLayout);
+
     // Добавляем кнопку обновления списка
-    QPushButton *refreshBtn = new QPushButton("Обновить список");
+    QPushButton *refreshBtn = new QPushButton("Обновить списки");
     connect(refreshBtn, &QPushButton::clicked, this, &MainWindow::refreshLogList);
-    hLayout->addWidget(refreshBtn);
+    
+    auto *historyMainLayout = new QVBoxLayout();
+    historyMainLayout->addLayout(hLayout);
+    historyMainLayout->addWidget(refreshBtn);
+    historyTab->setLayout(historyMainLayout);
 
     tabs->addTab(powerTab, "Питание");
     tabs->addTab(coolingTab, "Охлаждение");
@@ -296,28 +323,81 @@ void MainWindow::saveLogToFile(const QString& formattedMsg) {
     }
 }
 
+void MainWindow::onDataLogTick() {
+    // Собираем данные только если драйвер проинициализирован и работает
+    // if (!manager.isOk() && !manager.isBusy()) return; 
+
+    QJsonObject root;
+    // Используем миллисекунды для точной привязки к оси QDateTimeAxis в графиках
+    root["time"] = static_cast<double>(QDateTime::currentMSecsSinceEpoch());
+
+    QJsonObject power;
+    power["current"] = manager.getCurrent();
+
+    QJsonObject cool;
+    cool["temp"] = manager.getTemp();
+    cool["flow"] = manager.getFlow();
+
+    QJsonObject sensors;
+    sensors["hall"] = manager.getHall();
+    sensors["ioncurrent"] = manager.getFaraday();
+    sensors["pressure"] = SensorController::getPressFromVolt(manager.getVacuum());
+
+    root["powercontroller"] = power;
+    root["coolcontroller"] = cool;
+    root["sensorcontroller"] = sensors;
+
+    QJsonDocument doc(root);
+    QString fileName = "Data-" + QDateTime::currentDateTime().toString("dd-MM-yyyy") + ".jsonl";
+    
+    QDir dir;
+    if (!dir.exists("Logs")) dir.mkdir("Logs");
+    QFile file("Logs/" + fileName);
+    
+    if (file.open(QIODevice::Append | QIODevice::Text)) {
+        QTextStream out(&file);
+        out << doc.toJson(QJsonDocument::Compact) << "\n";
+        file.close();
+    }
+}
+
 void MainWindow::refreshLogList() {
     logFileList->clear();
+    dataFileList->clear();
     
     QDir dir("Logs");
     if (!dir.exists()) return;
 
-    // Получаем список .txt файлов, сортируем по дате (новые сверху)
+    // Загрузка текстовых логов
     dir.setNameFilters(QStringList() << "*.txt");
-    dir.setFilter(QDir::Files);
-    dir.setSorting(QDir::Time);
+    QFileInfoList txtList = dir.entryInfoList(QDir::Files, QDir::Time);
+    for (const QFileInfo& fi : txtList) {
+        logFileList->addItem(fi.fileName());
+    }
 
-    QFileInfoList list = dir.entryInfoList();
-    for (int i = 0; i < list.size(); ++i) {
-        logFileList->addItem(list.at(i).fileName());
+    // Загрузка логов данных
+    dir.setNameFilters(QStringList() << "*.jsonl");
+    QFileInfoList dataList = dir.entryInfoList(QDir::Files, QDir::Time);
+    for (const QFileInfo& fi : dataList) {
+        dataFileList->addItem(fi.fileName());
     }
 }
 
 void MainWindow::onLogFileDoubleClicked(QListWidgetItem *item) {
+    // Получаем полный путь к выбранному текстовому файлу
     QString filePath = QDir::currentPath() + "/Logs/" + item->text();
     
-    // Открываем файл встроенными средствами ОС (Блокнот, TextEdit и т.д.)
+    // Открываем файл средствами операционной системы (например, в Блокноте)
     QDesktopServices::openUrl(QUrl::fromLocalFile(filePath));
+}
+
+void MainWindow::onDataFileDoubleClicked(QListWidgetItem *item) {
+    QString filePath = QDir::currentPath() + "/Logs/" + item->text();
+    
+    // Создаем новое независимое окно с графиком.
+    // Так как у него установлен атрибут WA_DeleteOnClose, память не утечет.
+    auto* viewer = new DataViewerWindow(filePath, this);
+    viewer->show();
 }
 
 void MainWindow::onTimerTick() {

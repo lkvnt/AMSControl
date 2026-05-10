@@ -65,6 +65,8 @@ private:
 
     // Внутренние методы проверки условий
     void checkInterlocks(float flow, float temp, uint8_t power_status);
+
+    void handleUnexpectedPacket(const CAN_PACKET& pkt);
 };
 
 #endif // SYSTEM_MANAGER_H

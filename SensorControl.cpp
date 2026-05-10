@@ -49,5 +49,5 @@ float SensorController::getPressFromVolt(float volt) {
     else if (volt >= 6.7835f && volt < 8.0272f) return 10.9212 + 0.6655 * std::log(volt);
     else if (volt >= 8.0272f && volt < 8.9702f) return 9.9684 + 0.4464 * std::log(volt);
     else if (volt >= 8.9702f && volt <= 9.5f) return 9.5545 + 0.2613 * std::log(volt);
-    else return 0;
+    else return -1;
 }
