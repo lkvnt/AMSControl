@@ -1,7 +1,10 @@
 #include "PowerControl.h"
+#include "SettingsManager.h"
 
-PowerSupplyController::PowerSupplyController(uint8_t deviceId, QObject* parent) 
-    : QObject(parent), can(nullptr), dev_id(deviceId), current_actual(0.0f), status_flags(0), isBusy(false) {}
+PowerSupplyController::PowerSupplyController(QObject* parent) 
+    : QObject(parent), can(nullptr), current_actual(0.0f), status_flags(0), isBusy(false) {
+        dev_id = SettingsManager::instance().get("power_deviceId").toInt();
+    }
 
 void PowerSupplyController::setCanInterface(CanBusManager* can_interface) {
     if (can) return;
@@ -146,6 +149,22 @@ void PowerSupplyController::processRegisterData(const CAN_PACKET& rcv) {
     // Выключение ВЧ-300 при наличии ошибки во входном регистре
     if (status_flags & 0x3E) {
         can->sendCommand(getTargetId(), 0xF9, {0x02});
+    }
+}
+
+void PowerSupplyController::handleMessage(const CAN_PACKET& pkt) {
+    uint8_t cmd = pkt.data[0];
+    if (cmd == 0x02) {
+        processADCData(pkt);
+    } else if (cmd == 0xF8) {
+        processRegisterData(pkt);
+    } else {
+        QString hexData;
+        uint64_t data = 0;
+        for (int i = 0; i < pkt.len; ++i) {
+            hexData += QString("%1 ").arg(pkt.data[i], 2, 16, QChar('0')).toUpper();
+        }
+        emit logMessage(QString("SystemManager: Received unexpected data. ID: 0x%1 Data(HEX): %2").arg(QString::number(pkt.CAN_ID, 16).toUpper(), hexData.trimmed()));
     }
 }
 

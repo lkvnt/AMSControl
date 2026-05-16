@@ -38,6 +38,10 @@ set(SOURCES
     SensorControl.h
     DataViewerWindow.h
     DataViewerWindow.cpp
+    SettingsDialog.h
+    SettingsDialog.cpp
+    SettingsManager.h
+    SettingsManager.cpp
 )
 
 # 4. Создаем исполняемый файл

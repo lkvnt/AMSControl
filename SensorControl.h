@@ -8,14 +8,15 @@
 class SensorController : public QObject {
     Q_OBJECT
 public:
-    // Поменять на ID реальный
-    explicit SensorController(uint8_t deviceId = 0b111110, QObject* parent = nullptr);
+    explicit SensorController(QObject* parent = nullptr);
     ~SensorController() = default;
 
     void setCanInterface(CanBusManager* can_interface);
 
     // Обработка пакета
     void processADCData(const CAN_PACKET& rcv);
+
+    void handleMessage(const CAN_PACKET& pkt);
 
     // Геттеры
     float getFaradayVoltage() const { return faraday_v; }

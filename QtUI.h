@@ -30,22 +30,24 @@ private slots:
     void onLogFileDoubleClicked(QListWidgetItem *item);
     void refreshLogList();
     void onBusyStateChanged(bool isBusy);
-    void onDataLogTick();
     void onDataFileDoubleClicked(QListWidgetItem *item);
 
 private:
     void setupUI();
     void updateLamps(uint8_t status);
-    void saveLogToFile(const QString& formattedMsg);
     
     SystemManager manager;
     QTimer *updateTimer;
-    QTimer *dataLogTimer;
 
     QLabel *tempLabel;
     QLabel *flowLabel;
     QDoubleSpinBox *currentSpinBox;
     QPushButton *setBtn;
+    QPushButton *mainSettingsBtn;
+    QPushButton *powSettingsBtn;
+    QPushButton *coolSettingsBtn;
+    QPushButton *measSettingsBtn;
+    QPushButton *logSettingsBtn;
     QLabel *faradayLabel;
     QLabel *hallLabel;
     QLabel *vacuumVoltLabel;
@@ -65,6 +67,8 @@ private:
     QLabel *tempProtLed;
     QLabel *invErrLed;
     QLabel *phaseErrLed;
+    QLabel *pumpLed;
+    QLabel *radiatorLed;
 
     QPushButton *startBtn;
     QPushButton *stopBtn;

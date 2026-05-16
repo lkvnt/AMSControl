@@ -7,6 +7,8 @@ CanBusManager::CanBusManager(QObject* parent) : QObject(parent), card_handle(-1)
 }
 
 CanBusManager::~CanBusManager() {
+    CanClearRxBuffer(card_handle);
+    CanClearTxBuffer(card_handle);
     close();
 }
 

@@ -9,10 +9,14 @@
 #include <QGroupBox>
 #include "DataViewerWindow.h"
 #include "QtUI.h"
+#include "SettingsDialog.h"
+#include "SettingsManager.h"
 
-MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), time_axis(0.0f), updateFreq(10.0f) {
+MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), time_axis(0.0f) {
     setupUI();
     resize(900, 700);
+
+    updateFreq = SettingsManager::instance().get("update_frequency").toInt();
 
     // Подписываемся на логи Менеджера и выводим в StatusBar
     connect(&manager, &SystemManager::logMessage, this, &MainWindow::onLogMessage);
@@ -23,10 +27,6 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), time_axis(0.0f), 
     updateTimer = new QTimer(this);
     connect(updateTimer, &QTimer::timeout, this, &MainWindow::onTimerTick);
     updateTimer->start(1000.0 / updateFreq); // Таймер обновления данных в интерфейсе
-
-    dataLogTimer = new QTimer(this);
-    connect(dataLogTimer, &QTimer::timeout, this, &MainWindow::onDataLogTick);
-    dataLogTimer->start(500); // Таймер логирования измерений
 
     onBusyStateChanged(false);
     QTimer::singleShot(200, this, [this]() {
@@ -73,12 +73,29 @@ void MainWindow::setupUI() {
     stopBtn->setStyleSheet(baseButtonStyle + 
         "QPushButton:enabled { background-color: #d2691e; font-weight: bold; height: 35px; } "
         "QPushButton:hover:enabled { background-color: #e67e22; border: 1px solid #fff; }");
+
+    mainSettingsBtn = new QPushButton("⚙");
+    mainSettingsBtn->setFixedSize(30, 30);
+    mainSettingsBtn->setStyleSheet(baseButtonStyle);
+    connect(mainSettingsBtn, &QPushButton::clicked, [this]() {
+        SettingsDialog dlg("Главная", this);
+
+        connect(&dlg, &SettingsDialog::reqPowerOn, &manager, &SystemManager::manualPowerOn);
+        connect(&dlg, &SettingsDialog::reqPowerOff, &manager, &SystemManager::manualPowerOff);
+        connect(&dlg, &SettingsDialog::reqResetProt, &manager, &SystemManager::manualResetProt);
+        connect(&dlg, &SettingsDialog::reqSetCurrent, &manager, &SystemManager::setCurrent);
+        connect(&dlg, &SettingsDialog::reqCoolingOn, &manager, &SystemManager::manualCoolingOn);
+        connect(&dlg, &SettingsDialog::reqCoolingOff, &manager, &SystemManager::manualCoolingOff);
+
+        dlg.exec();
+    });
     
     connect(startBtn, &QPushButton::clicked, this, &MainWindow::handleStart);
     connect(stopBtn, &QPushButton::clicked, this, &MainWindow::handleStop);
 
     ctrlLayout->addWidget(startBtn);
     ctrlLayout->addWidget(stopBtn);
+    ctrlLayout->addWidget(mainSettingsBtn);
     mainLayout->addLayout(ctrlLayout);
 
     // --- Глобальная информация ---
@@ -120,11 +137,17 @@ void MainWindow::setupUI() {
     setBtn = new QPushButton("Установить ток");
     setBtn->setStyleSheet(baseButtonStyle);
     connect(setBtn, &QPushButton::clicked, this, &MainWindow::handleSetCurrent);
-    // setBtn->setEnabled(false);
-    // currentSpinBox->setEnabled(false);
+    powSettingsBtn = new QPushButton("⚙");
+    powSettingsBtn->setFixedSize(30, 30);
+    powSettingsBtn->setStyleSheet(baseButtonStyle);
+    connect(powSettingsBtn, &QPushButton::clicked, [this]() {
+        SettingsDialog dlg("Питание", this);
+        dlg.exec();
+    });
     currLayout->addWidget(new QLabel("Целевой ток (А):"));
     currLayout->addWidget(currentSpinBox);
     currLayout->addWidget(setBtn);
+    currLayout->addWidget(powSettingsBtn);
     pLayout->addLayout(currLayout);
 
     // Блок лампочек
@@ -173,8 +196,28 @@ void MainWindow::setupUI() {
     // --- Вкладка Охлаждения ---
     auto *coolingTab = new QWidget();
     auto *cLayout = new QVBoxLayout(coolingTab);
+
+    auto *cStatusLayout = new QHBoxLayout();
+    QString cLedStyle = "border-radius: 5px; min-width: 120px; min-height: 25px; background-color: gray; color: white; font-weight: bold; qproperty-alignment: 'AlignCenter';";
+    pumpLed = new QLabel("НАСОС"); pumpLed->setStyleSheet(ledStyle);
+    radiatorLed = new QLabel("РАДИАТОР"); radiatorLed->setStyleSheet(ledStyle);
+    cStatusLayout->addWidget(pumpLed);
+    cStatusLayout->addWidget(radiatorLed);
+
+    coolSettingsBtn = new QPushButton("⚙");
+    coolSettingsBtn->setFixedSize(30, 30);
+    coolSettingsBtn->setStyleSheet(baseButtonStyle);
+    connect(coolSettingsBtn, &QPushButton::clicked, [this]() {
+        SettingsDialog dlg("Охлаждение", this);
+        dlg.exec();
+    });
+    cStatusLayout->addWidget(coolSettingsBtn);
+    cLayout->addLayout(cStatusLayout);
+
     tempLabel = new QLabel("Температура: -- °C");
+    tempLabel->setStyleSheet("font-size: 16px; margin: 5px;");
     flowLabel = new QLabel("Поток: -- л/мин");
+    flowLabel->setStyleSheet("font-size: 16px; margin: 5px;");
     cLayout->addWidget(tempLabel);
     cLayout->addWidget(flowLabel);
     cLayout->addStretch();
@@ -183,9 +226,19 @@ void MainWindow::setupUI() {
     auto *sensorTab = new QWidget();
     auto *sLayout = new QVBoxLayout(sensorTab);
     
+    auto *sHelpLayout = new QHBoxLayout();
+    measSettingsBtn = new QPushButton("⚙");
+    measSettingsBtn->setFixedSize(30, 30);
+    measSettingsBtn->setStyleSheet(baseButtonStyle);
+    connect(measSettingsBtn, &QPushButton::clicked, [this]() {
+        SettingsDialog dlg("Измерения", this);
+        dlg.exec();
+    });
     faradayLabel = new QLabel("Цилиндр Фарадея: -- В");
     faradayLabel->setStyleSheet("font-size: 16px; margin: 5px;");
-    
+    sHelpLayout->addWidget(faradayLabel);
+    sHelpLayout->addWidget(measSettingsBtn);
+
     hallLabel = new QLabel("Датчик Холла: -- мВ");
     hallLabel->setStyleSheet("font-size: 16px; margin: 5px;");
     
@@ -195,7 +248,7 @@ void MainWindow::setupUI() {
     vacuumPressLabel = new QLabel("ВМБ-14 давление: -- Па");
     vacuumPressLabel->setStyleSheet("font-size: 16px; margin: 5px;");
 
-    sLayout->addWidget(faradayLabel);
+    sLayout->addLayout(sHelpLayout);
     sLayout->addWidget(hallLabel);
     sLayout->addWidget(vacuumVoltLabel);
     sLayout->addWidget(vacuumPressLabel);
@@ -205,6 +258,22 @@ void MainWindow::setupUI() {
 
     // --- Вкладка Логов ---
     auto *historyTab = new QWidget();
+    auto *historyMainLayout = new QVBoxLayout(historyTab);
+
+    auto *topBarLayout = new QHBoxLayout();
+    topBarLayout->addStretch();
+
+    logSettingsBtn = new QPushButton("⚙");
+    logSettingsBtn->setFixedSize(30, 30);
+    logSettingsBtn->setStyleSheet(baseButtonStyle);
+    connect(logSettingsBtn, &QPushButton::clicked, [this]() {
+        SettingsDialog dlg("Логи", this); 
+        dlg.exec();
+    });
+    
+    topBarLayout->addWidget(logSettingsBtn);
+    historyMainLayout->addLayout(topBarLayout);
+
     auto *hLayout = new QHBoxLayout();
     
     // Тектовый формат логов
@@ -240,14 +309,13 @@ void MainWindow::setupUI() {
     hLayout->addLayout(textLogLayout);
     hLayout->addLayout(dataLogLayout);
 
+    historyMainLayout->addLayout(hLayout);
+
     // Добавляем кнопку обновления списка
     QPushButton *refreshBtn = new QPushButton("Обновить списки");
     connect(refreshBtn, &QPushButton::clicked, this, &MainWindow::refreshLogList);
     
-    auto *historyMainLayout = new QVBoxLayout();
-    historyMainLayout->addLayout(hLayout);
     historyMainLayout->addWidget(refreshBtn);
-    historyTab->setLayout(historyMainLayout);
 
     tabs->addTab(powerTab, "Питание");
     tabs->addTab(coolingTab, "Охлаждение");
@@ -298,67 +366,6 @@ void MainWindow::onLogMessage(const QString& msg) {
     // Таймер самоуничтожения через 5 секунд
     // После удаления виджета Layout автоматически "подтянет" остальные элементы вверх
     QTimer::singleShot(10000, label, &QLabel::deleteLater);
-
-    // Сохранение в файл
-    saveLogToFile(fullMsg);
-}
-
-void MainWindow::saveLogToFile(const QString& formattedMsg) {
-    // Создаем папку Logs, если её нет
-    QDir dir;
-    if (!dir.exists("Logs")) {
-        dir.mkdir("Logs");
-    }
-
-    // Формируем имя файла DD-MM-YYYY.txt
-    QString fileName = QDateTime::currentDateTime().toString("dd-MM-yyyy") + ".txt";
-    QFile file("Logs/" + fileName);
-
-    // Открываем в режиме Append (дозапись)
-    if (file.open(QIODevice::Append | QIODevice::Text)) {
-        QTextStream out(&file);
-        // out.setEncoding(QStringConverter::Encoding::Utf8); // Для корректной поддержки кириллицы
-        out << formattedMsg << "\n";
-        file.close();
-    }
-}
-
-void MainWindow::onDataLogTick() {
-    // Собираем данные только если драйвер проинициализирован и работает
-    // if (!manager.isOk() && !manager.isBusy()) return; 
-
-    QJsonObject root;
-    // Используем миллисекунды для точной привязки к оси QDateTimeAxis в графиках
-    root["time"] = static_cast<double>(QDateTime::currentMSecsSinceEpoch());
-
-    QJsonObject power;
-    power["current"] = manager.getCurrent();
-
-    QJsonObject cool;
-    cool["temp"] = manager.getTemp();
-    cool["flow"] = manager.getFlow();
-
-    QJsonObject sensors;
-    sensors["hall"] = manager.getHall();
-    sensors["ioncurrent"] = manager.getFaraday();
-    sensors["pressure"] = SensorController::getPressFromVolt(manager.getVacuum());
-
-    root["powercontroller"] = power;
-    root["coolcontroller"] = cool;
-    root["sensorcontroller"] = sensors;
-
-    QJsonDocument doc(root);
-    QString fileName = "Data-" + QDateTime::currentDateTime().toString("dd-MM-yyyy") + ".jsonl";
-    
-    QDir dir;
-    if (!dir.exists("Logs")) dir.mkdir("Logs");
-    QFile file("Logs/" + fileName);
-    
-    if (file.open(QIODevice::Append | QIODevice::Text)) {
-        QTextStream out(&file);
-        out << doc.toJson(QJsonDocument::Compact) << "\n";
-        file.close();
-    }
 }
 
 void MainWindow::refreshLogList() {
@@ -401,8 +408,6 @@ void MainWindow::onDataFileDoubleClicked(QListWidgetItem *item) {
 }
 
 void MainWindow::onTimerTick() {
-    manager.update(); 
-
     // Обновление глобальной панели
     globalCurrent->setText(QString("Ток: %1 А").arg(manager.getCurrent(), 0, 'f', 2));
     globalTemp->setText(QString("Темп: %1 °C").arg(manager.getTemp(), 0, 'f', 1));
@@ -416,6 +421,11 @@ void MainWindow::onTimerTick() {
     globalErrorLed->setStyleSheet(ledStyle + (hasError ? "background-color: red;" : "background-color: gray;"));
 
     // Обновление охлаждения
+    auto setCol = [](QLabel* l, bool cond, const char* cOn, const char* cOff) {
+        l->setStyleSheet(QString("border-radius:5px; min-width:90px; min-height:25px; font-weight: bold; font-size:10px; color:white; background-color: %1;").arg(cond ? cOn : cOff));
+    };
+    setCol(pumpLed, manager.getPumpState(), "lightgreen", "gray");
+    setCol(radiatorLed, manager.getPumpState(), "lightgreen", "gray");
     tempLabel->setText(QString("Температура: %1 °C").arg(manager.getTemp()));
     flowLabel->setText(QString("Поток: %1 л/мин").arg(manager.getFlow()));
 
@@ -427,10 +437,11 @@ void MainWindow::onTimerTick() {
     adcVoltLabel->setText(QString("Напряжение АЦП: %1 В").arg(volt, 0, 'f', 4));
 
     currentSeries->append(time_axis, cur);
-    if (currentSeries->count() > 100) currentSeries->remove(0); 
+    if (currentSeries->count() > 10 * updateFreq) currentSeries->remove(0); 
     currentChart->axes(Qt::Horizontal).first()->setRange(time_axis - 10, time_axis);
     time_axis += 1.0 / updateFreq;
-
+    
+    // Обновление лампочек состояния
     updateLamps(manager.getStatusFlags());
 
     // Обновление общих измерений
@@ -444,7 +455,7 @@ void MainWindow::onTimerTick() {
 
     vacuum_v = std::max(0.0f, std::min(10.0f, vacuum_v));
     double pressure = SensorController::getPressFromVolt(vacuum_v);
-    if (pressure != 0) {
+    if (pressure != -1) {
         int exponent = std::floor(std::log10(pressure));
         double mantissa = pressure / std::pow(10.0, exponent);
         vacuumPressLabel->setText(QString("Вакуум (Давление): %1 * 10^%2 Па")

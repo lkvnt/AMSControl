@@ -9,7 +9,7 @@
 class PowerSupplyController : public QObject {
     Q_OBJECT
 public:
-    explicit PowerSupplyController(uint8_t deviceId = 0b010110, QObject* parent = nullptr);
+    explicit PowerSupplyController(QObject* parent = nullptr);
     ~PowerSupplyController() = default;
 
     void setCanInterface(CanBusManager* can_interface);
@@ -22,6 +22,8 @@ public:
 
     void processADCData(const CAN_PACKET& rcv);
     void processRegisterData(const CAN_PACKET& rcv);
+
+    void handleMessage(const CAN_PACKET& pkt);
 
     float getCurrent() const { return current_actual; }
     float getAdcVoltage() const { return voltage_actual; }

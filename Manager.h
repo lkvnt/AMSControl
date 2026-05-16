@@ -21,9 +21,8 @@ public:
     void initHardware();
 
     // --- Логика управления ---
-    void startSystem();      // Последовательный запуск (сначала охлаждение)
-    void stopSystem();       // Плановый останов
-    void emergencyAllStop(); // Немедленный аварийный останов всего железа
+    void startSystem();      // Запуск
+    void stopSystem();       // Остановка
     
     // Метод для вызова в цикле таймера (проверка условий безопасности)
     void update(); 
@@ -41,9 +40,18 @@ public:
     float getVacuum() const { return sensors.getVacuumVoltage(); }
 
     // Состояние системы для индикации в UI
+    bool getPumpState() const { return cooling.getPumpState(); }
+    bool getCoolState() const { return cooling.getCoolState(); }
     bool isOk() const { return is_system_ok; }
     bool isBusy() const { return power.isDeviceBusy() || startup_step > 0; }
     uint8_t getStatusFlags() const { return power.getStatusFlags(); }
+
+    // Ручное управление
+    void manualPowerOn() { power.setPowerState(true); }
+    void manualPowerOff() { power.setPowerState(false); }
+    void manualResetProt() { power.resetProtection(); }
+    void manualCoolingOn() { cooling.setPumpState(true); cooling.setCoolerState(true); }
+    void manualCoolingOff() { cooling.setPumpState(false); cooling.setCoolerState(false); }
 
 signals:
     void logMessage(const QString& msg);
@@ -58,15 +66,30 @@ private:
     CoolingController cooling;
     SensorController sensors;
     
-    bool is_system_ok;
-    int startup_step; // 0 - простой, 1 - ждем пинг FF, 2 - сброс ошибок, 3 - попытка включения, 4 - проверка статуса
+    bool is_system_ok = false;
+    volatile int startup_step = 0; // 0 - простой, 1 - ждем пинг FF, 2 - сброс ошибок, 3 - попытка включения, 4 - проверка статуса
     
     void continueStartSystem();
 
     // Внутренние методы проверки условий
-    void checkInterlocks(float flow, float temp, uint8_t power_status);
+    QTimer *updateTimer;
+    float updateFreq;
+    void checkInterlocks(float flow, float temp, uint8_t power_status); // TODO: дописать в этот метод проверку давления
 
     void handleUnexpectedPacket(const CAN_PACKET& pkt);
+
+    // Логирование
+    QTimer *dataLogTimer;
+    void saveLogToFile(const QString& msg);
+    void saveDataLogToFile();
+
+    // Контроль блоков на линии
+    bool cdacResponded = false;
+    bool cacResponded = false;
+
+    // Контроль таймаутов
+    qint64 lastPowerMsgTime = 0;
+    qint64 lastSensorMsgTime = 0;
 };
 
 #endif // SYSTEM_MANAGER_H

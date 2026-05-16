@@ -10,9 +10,14 @@ public:
     CoolingController();
     void setPumpState(bool start);
     void setCoolerState(bool start);
-    float getTemperature() const { return 24.5; }
-    float getFlowRate() const { return 12.8; }
-    void emergencyStop();
+    float getTemperature() const;
+    float getFlowRate() const;
+    bool getPumpState() const { return pumpState; }
+    bool getCoolState() const { return coolState; }
+
+private:
+    bool pumpState;
+    bool coolState;
 
 signals:
     void logMessage(const QString& msg);

@@ -1,0 +1,200 @@
+#include "SettingsDialog.h"
+#include "SettingsManager.h"
+#include "PowerControl.h"
+#include "CoolControl.h"
+#include <QVBoxLayout>
+#include <QFormLayout>
+#include <QSpinBox>
+#include <QDoubleSpinBox>
+#include <QDialogButtonBox>
+#include <QMessageBox>
+#include <QPushButton>
+#include <QLabel>
+
+SettingsDialog::SettingsDialog(const QString& tabName, QWidget *parent) : QDialog(parent) {
+    setWindowTitle("Настройки: " + tabName);
+    resize(350, 200);
+
+    auto *layout = new QVBoxLayout(this);
+    auto *form = new QFormLayout();
+
+    SettingsManager &sm = SettingsManager::instance();
+
+    // ========================================================
+    // Настройки интерфейса и доп. управление
+    // ========================================================
+    if (tabName == "Главная") {
+        auto *freqSpin = new QSpinBox();
+        freqSpin->setRange(1, 1000);
+        int oldFreq = sm.get("update_frequency").toInt();
+        freqSpin->setValue(oldFreq);
+        form->addRow("UI update frequency (Hz): ", freqSpin);
+
+        auto *pLayout = new QHBoxLayout();
+        auto *powerOnBtn = new QPushButton("Turn on VCH-300");
+        connect(powerOnBtn, &QPushButton::clicked, this, &SettingsDialog::reqPowerOn);
+        auto *powerOffBtn = new QPushButton("Turn off VCH-300");
+        connect(powerOffBtn, &QPushButton::clicked, this, &SettingsDialog::reqPowerOff);
+        auto *resetProt = new QPushButton("Reset prot. VCH-300");
+        connect(resetProt, &QPushButton::clicked, this, &SettingsDialog::reqResetProt);
+        pLayout->addWidget(powerOnBtn);
+        pLayout->addWidget(powerOffBtn);
+        pLayout->addWidget(resetProt);
+        form->addRow(pLayout);
+
+        auto *currLayout = new QHBoxLayout();
+        auto *currSpin = new QSpinBox();
+        currSpin->setRange(0, 300);
+        currSpin->setValue(0);
+        auto *currSetBtn = new QPushButton("Set current");
+        connect(currSetBtn, &QPushButton::clicked, this, [this, currSpin]() {
+            emit reqSetCurrent(static_cast<float>(currSpin->value()));
+        });
+        currLayout->addWidget(new QLabel("VCH-300 current (A): "));
+        currLayout->addWidget(currSpin);
+        currLayout->addWidget(currSetBtn);
+        form->addRow(currLayout);
+
+        auto *cLayout = new QHBoxLayout();
+        auto *coolOnBtn = new QPushButton("Turn on cooling");
+        connect(coolOnBtn, &QPushButton::clicked, this, &SettingsDialog::reqCoolingOn);
+        auto *coolOffBtn = new QPushButton("Turn off cooling");
+        connect(coolOffBtn, &QPushButton::clicked, this, &SettingsDialog::reqCoolingOff);
+        cLayout->addWidget(coolOnBtn);
+        cLayout->addWidget(coolOffBtn);
+        form->addRow(cLayout);
+        
+        connect(this, &QDialog::accepted, [=, &sm]() {
+            if (freqSpin->value() != oldFreq) {
+                sm.set("update_frequency", freqSpin->value());
+                QMessageBox::information(nullptr, "Требуется перезагрузка", 
+                    "Новые параметры успешно сохранены в settings.json.\n\n"
+                    "Пожалуйста, перезапустите программу, чтобы изменения вступили в силу.");
+            }
+        });
+    }
+    // ========================================================
+    // Настройки вкладки ПИТАНИЕ
+    // ========================================================
+    else if (tabName == "Питание") {
+        auto *idSpin = new QSpinBox();
+        idSpin->setDisplayIntegerBase(16); // Ввод в HEX
+        idSpin->setPrefix("0x");
+        idSpin->setRange(0, 255);
+        int oldId = sm.get("power_deviceId").toInt();
+        idSpin->setValue(oldId);
+        
+        form->addRow("Device ID (CDAC20):", idSpin);
+        
+        connect(this, &QDialog::accepted, [=, &sm]() {
+            if (idSpin->value() != oldId) {
+                sm.set("power_deviceId", idSpin->value());
+                QMessageBox::information(nullptr, "Требуется перезагрузка", 
+                    "Новые параметры успешно сохранены в settings.json.\n\n"
+                    "Пожалуйста, перезапустите программу, чтобы изменения вступили в силу.");
+            }
+        });
+    } 
+    // ========================================================
+    // Настройки вкладки ОХЛАЖДЕНИЕ
+    // ========================================================
+    else if (tabName == "Охлаждение") {
+        auto *tSpin = new QDoubleSpinBox(); 
+        tSpin->setRange(-50.0, 200.0);
+        tSpin->setValue(sm.get("cool_mockTemp").toDouble());
+        
+        auto *fSpin = new QDoubleSpinBox(); 
+        fSpin->setRange(0.0, 100.0);
+        fSpin->setValue(sm.get("cool_mockFlow").toDouble());
+        
+        form->addRow("Заглушка Температура (°C):", tSpin);
+        form->addRow("Заглушка Поток (л/мин):", fSpin);
+        
+        connect(this, &QDialog::accepted, [=, &sm]() {
+            sm.set("cool_mockTemp", tSpin->value());
+            sm.set("cool_mockFlow", fSpin->value());
+        });
+    }
+    // ========================================================
+    // Настройки вкладки ИЗМЕРЕНИЯ (Сенсоры)
+    // ========================================================
+    else if (tabName == "Измерения") {
+        auto *idSpin = new QSpinBox();
+        idSpin->setDisplayIntegerBase(16);
+        idSpin->setPrefix("0x");
+        idSpin->setRange(0, 255);
+        int oldId = sm.get("sensor_deviceId").toInt();
+        idSpin->setValue(oldId);
+
+        auto *chFaraday = new QSpinBox();
+        chFaraday->setDisplayIntegerBase(16);
+        chFaraday->setPrefix("0x");
+        chFaraday->setRange(0, 255);
+        chFaraday->setValue(sm.get("sensor_chanFaraday").toInt());
+
+        auto *chHall = new QSpinBox();
+        chHall->setDisplayIntegerBase(16);
+        chHall->setPrefix("0x");
+        chHall->setRange(0, 255);
+        chHall->setValue(sm.get("sensor_chanHall").toInt());
+
+        auto *chVacuum = new QSpinBox();
+        chVacuum->setDisplayIntegerBase(16);
+        chVacuum->setPrefix("0x");
+        chVacuum->setRange(0, 255);
+        chVacuum->setValue(sm.get("sensor_chanVacuum").toInt());
+
+        form->addRow("Device ID (CAC208):", idSpin);
+        form->addRow("Канал: Цилиндр Фарадея:", chFaraday);
+        form->addRow("Канал: Датчик Холла:", chHall);
+        form->addRow("Канал: Давление (ВМБ-14):", chVacuum);
+
+        connect(this, &QDialog::accepted, [=, &sm]() {
+            sm.set("sensor_chanFaraday", chFaraday->value());
+            sm.set("sensor_chanHall", chHall->value());
+            sm.set("sensor_chanVacuum", chVacuum->value());
+            if (idSpin->value() != oldId) {
+                sm.set("sensor_deviceId", idSpin->value());
+                QMessageBox::information(nullptr, "Требуется перезагрузка", 
+                    "Новые параметры успешно сохранены в settings.json.\n\n"
+                    "Пожалуйста, перезапустите программу, чтобы изменения вступили в силу.");
+            }
+        });
+    }
+    // ========================================================
+    // Настройки вкладки ЛОГИ
+    // ========================================================
+    else if (tabName == "Логи") {
+        auto *logSpin = new QSpinBox();
+        logSpin->setRange(100, 60000); // От 100 мс до 1 минуты
+        logSpin->setSuffix(" мс");
+        logSpin->setSingleStep(100);
+        int oldLog = sm.get("log_intervalMs").toInt();
+        logSpin->setValue(oldLog);
+
+        form->addRow("Интервал записи данных:", logSpin);
+
+        connect(this, &QDialog::accepted, [=, &sm]() {
+            if (logSpin->value() != oldLog) {
+                sm.set("log_intervalMs", logSpin->value());
+                QMessageBox::information(nullptr, "Требуется перезагрузка", 
+                    "Новые параметры успешно сохранены в settings.json.\n\n"
+                    "Пожалуйста, перезапустите программу, чтобы изменения вступили в силу.");
+            }
+        });
+    }
+
+    layout->addLayout(form);
+
+    // Добавляем кнопки ОК и Отмена
+    auto *btnBox = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
+    connect(btnBox, &QDialogButtonBox::accepted, this, &QDialog::accept);
+    connect(btnBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
+    layout->addWidget(btnBox);
+
+    // При нажатии "ОК" (после сохранения локальных данных лямбдами выше)
+    // Сохраняем весь JSON и показываем уведомление о перезапуске
+    connect(this, &QDialog::accepted, this, []() {
+        SettingsManager::instance().save();
+    });
+}
