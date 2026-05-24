@@ -50,6 +50,19 @@ void CanBusManager::close() {
     }
 }
 
+bool CanBusManager::sendCommand(uint32_t target_id, const std::vector<uint8_t>& payload) {
+    if (card_handle < 0) return false;
+    
+    CAN_PACKET pkg = {0};
+    pkg.CAN_ID = target_id;
+    pkg.rtr = 0;
+    pkg.len = payload.size();
+    for (size_t i = 0; i < payload.size() && i < 8; ++i) {
+        pkg.data[i] = payload[i];
+    }
+    return CanSendMsg(card_handle, &pkg) == 0;
+}
+
 bool CanBusManager::sendCommand(uint32_t target_id, uint8_t cmd, const std::vector<uint8_t>& payload) {
     if (card_handle < 0) return false;
     

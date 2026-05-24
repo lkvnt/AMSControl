@@ -99,20 +99,28 @@ SettingsDialog::SettingsDialog(const QString& tabName, QWidget *parent) : QDialo
     // Настройки вкладки ОХЛАЖДЕНИЕ
     // ========================================================
     else if (tabName == "Охлаждение") {
+        auto *idSpin = new QSpinBox();
+        idSpin->setDisplayIntegerBase(16);
+        idSpin->setPrefix("0x");
+        idSpin->setRange(0, 255);
+        int oldId = sm.get("cool_deviceId").toInt();
+        idSpin->setValue(oldId);
+
         auto *tSpin = new QDoubleSpinBox(); 
         tSpin->setRange(-50.0, 200.0);
         tSpin->setValue(sm.get("cool_mockTemp").toDouble());
-        
-        auto *fSpin = new QDoubleSpinBox(); 
-        fSpin->setRange(0.0, 100.0);
-        fSpin->setValue(sm.get("cool_mockFlow").toDouble());
-        
+
+        form->addRow("Device ID (Arduino)", idSpin);
         form->addRow("Заглушка Температура (°C):", tSpin);
-        form->addRow("Заглушка Поток (л/мин):", fSpin);
         
         connect(this, &QDialog::accepted, [=, &sm]() {
             sm.set("cool_mockTemp", tSpin->value());
-            sm.set("cool_mockFlow", fSpin->value());
+            if (idSpin->value() != oldId) {
+                sm.set("sensor_deviceId", idSpin->value());
+                QMessageBox::information(nullptr, "Требуется перезагрузка", 
+                    "Новые параметры успешно сохранены в settings.json.\n\n"
+                    "Пожалуйста, перезапустите программу, чтобы изменения вступили в силу.");
+            }
         });
     }
     // ========================================================

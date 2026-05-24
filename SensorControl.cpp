@@ -4,12 +4,45 @@
 
 SensorController::SensorController(QObject* parent) 
     : QObject(parent), can(nullptr), faraday_v(0), hall_v(0), vacuum_v(0) {
-        dev_id = SettingsManager::instance().get("power_deviceId").toInt();
+        dev_id = SettingsManager::instance().get("sensor_deviceId").toInt();
     }
 
 void SensorController::setCanInterface(CanBusManager* can_interface) {
+    if (can) {
+        emit logMessage("SensorControl: CAN is already connected.");
+    }
     can = can_interface;
     emit logMessage("SensorControl: CAN interface connected.");
+}
+
+void SensorController::requestDataFlow() {
+    if (!can) {
+        emit logMessage("SensorControl: Warning! CAN is not initialized.");
+        return;
+    }
+    SettingsManager &sm = SettingsManager::instance();
+    uint8_t chHall = sm.get("sensor_chanHall").toInt();
+    uint8_t chFaraday = sm.get("sensor_chanFaraday").toInt();
+    uint8_t chVacuum = sm.get("sensor_chanVacuum").toInt();
+    can->sendCommand(getTargetId(), 0x01, { std::min({chHall, chFaraday, chVacuum}),
+                                            std::max({chHall, chFaraday, chVacuum}),
+                                            0x07, 0x30, 0x00});
+}
+
+void SensorController::requestConnection() {
+    if (!can) {
+        emit logMessage("SensorControl: Warning! CAN is not initialized.");
+        return;
+    }
+    can->sendCommand(getTargetId(), {0xFF});
+}
+
+void SensorController::stopDataFlow() {
+    if (!can) {
+        emit logMessage("SensorControl: Warning! CAN is not initialized.");
+        return;
+    }
+    can->sendCommand(getTargetId(), {0x00});
 }
 
 uint32_t SensorController::getTargetId() const {

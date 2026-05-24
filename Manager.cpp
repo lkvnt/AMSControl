@@ -3,10 +3,18 @@
 #include <QDir>
 #include <QDateTime>
 #include <QElapsedTimer>
+#include <QThreadPool>
 #include "Manager.h"
 #include "SettingsManager.h"
 
-SystemManager::SystemManager(QObject* parent) : QObject(parent), updateFreq(10.0f) {
+SystemManager::SystemManager(std::unique_ptr<Logger> eventLogger,
+                             std::unique_ptr<Logger> telemetryLogger,
+                             QObject* parent)
+    :   QObject(parent),
+        updateFreq(10.0f),
+        m_eventLogger(std::move(eventLogger)),
+        m_telemetryLogger(std::move(telemetryLogger))
+{
     // Проброс логов от всех подсистем наверх, в Manager
     connect(&canBus, &CanBusManager::logMessage, this, &SystemManager::logMessage);
     connect(&power, &PowerSupplyController::logMessage, this, &SystemManager::logMessage);
@@ -22,9 +30,9 @@ SystemManager::SystemManager(QObject* parent) : QObject(parent), updateFreq(10.0
     });
 
     // Логирование
-    connect(this, &SystemManager::logMessage, this, &SystemManager::saveLogToFile);
+    connect(this, &SystemManager::logMessage, this, &SystemManager::onLogMessageReceived);
     dataLogTimer = new QTimer(this); // Старт таймера будет при включении системы
-    connect(dataLogTimer, &QTimer::timeout, this, &SystemManager::saveDataLogToFile);
+    connect(dataLogTimer, &QTimer::timeout, this, &SystemManager::onDataLogTimeout);
 
     // Таймер на обновление статуса
     updateTimer = new QTimer(this);
@@ -33,8 +41,8 @@ SystemManager::SystemManager(QObject* parent) : QObject(parent), updateFreq(10.0
 }
 
 SystemManager::~SystemManager() {
-    canBus.sendCommand(power.getTargetId(), 0x00, {}); // Выключаем измерения АЦП
-    canBus.sendCommand(sensors.getTargetId(), 0x00, {});
+    power.stopDataFlow(); // Выключаем измерения АЦП
+    sensors.stopDataFlow();
     stopSystem();
     canBus.close();
 }
@@ -47,6 +55,7 @@ void SystemManager::initHardware() {
     } else {
         power.setCanInterface(&canBus);
         sensors.setCanInterface(&canBus);
+        cooling.setCanInterface(&canBus);
         emit logMessage("SystemManager: CAN-bus is ready.");
         
         // "Прогрев" драйвера (пустой пакет)
@@ -66,21 +75,12 @@ void SystemManager::startSystem() {
     startup_step = 1;
     emit busyStateChanged(true);
 
-    // 0.0 Проверка интерлоков (температура, давление итд)
-    if (cooling.getTemperature() > 70.0f) {
-        emit logMessage("SystemManager: Start error!. Coolant temperature too high!.");
-        stopSystem();
-    }
-
-    // 0.1 Получение ответа от arduino о наличии потока
-
-    // TODO
-
     // 1. Проверка наличия CDAC и CAC на линии
     if (startup_step != 1) return;
     emit logMessage("SystemManager: Checking CDAC20 and CAC208...");
-    canBus.sendCommand(power.getTargetId(), 0xFF, {});
-    canBus.sendCommand(sensors.getTargetId(), 0xFF, {});
+    power.requestConnection();
+    sensors.requestConnection();
+    cooling.requestConnection();
 
     QTimer::singleShot(500, this, [this]() {
         if (!cdacResponded) {
@@ -89,92 +89,127 @@ void SystemManager::startSystem() {
         } else if (!cacResponded) {
             emit logMessage("SystemManager: Warning! No response from CAC208. Startup process is stopped");
             stopSystem();
+        } else if (!arduinoResponded) {
+            emit logMessage("SystemManager: Warning! No response from Arduino. Startup process is stopped");
+            stopSystem();
         } else {
             startup_step = 2;
-            continueStartSystem();
+            continueStartSystem(startup_step);
         }
     });
-    // Далее после обработки ответного пакета FF вызовется continueStartSystem
+    // Далее после обработки ответных пакетов FF вызовется continueStartSystem
 }
 
-void SystemManager::continueStartSystem() {
-    cooling.setPumpState(true);
-    cooling.setCoolerState(true);
-    
-    // Включаем автоматический непрерывный репорт АЦП (0x30 - continuous)
-    canBus.sendCommand(power.getTargetId(), 0x02, {0x00, 0x07, 0x30});
-    canBus.sendCommand(sensors.getTargetId(), 0x01, {0x18, 0x19, 0x07, 0x30, 0x00});
-    
-    // 2. Запускаем сброс защиты (~ 2100 мс)
-    power.resetProtection();
+void SystemManager::continueStartSystem(int step) {
+    if (step == 2){
+        // Включаем автоматический непрерывный репорт АЦП (0x30 - continuous)
+        power.requestDataFlow();
+        sensors.requestDataFlow();
+        cooling.requestDataFlow();
 
-    // Ждем 2200 мс, пока сброс завершится, затем подаем питание
-    QTimer::singleShot(2200, this, [this]() {
-        // Если запуск прервали кнопкой СТОП
-        if (startup_step != 2) {
-            emit logMessage("SystemManager: Startup interrupted.");
-            return; 
-        }
+        // Проверка интерлоков
+        QTimer::singleShot(500, this, [this]() {
+            if (startup_step != 2) {
+                emit logMessage("SystemManager: Startup interrupted.");
+                return; 
+            }
 
-        // 3. Подаем питание (~ 500 мс)
-        startup_step = 3;
-        power.setPowerState(true);
+            if (cooling.getTemperature() > 70.0f) {
+                emit logMessage("SystemManager: Warning! Temperature too high! Startup process is stopped");
+                stopSystem();
+            } else {
+                cooling.setPumpState(true); // При успешном включении => наличии потока ардуино отправит сообщение
+                cooling.setCoolerState(true);
+                QTimer::singleShot(1000, this, [this]() {
+                    if (!cooling.getPumpState()) {
+                        emit logMessage("SystemManager: Warning! Pump error! Startup process is stopped");
+                        stopSystem();
+                    } else {
+                        startup_step = 3;
+                        continueStartSystem(startup_step);
+                    }
+                });
+            }
+        });
+    }
+    if (step == 3) {
+        // 3. Запускаем сброс защиты (~ 500 мс)
+        power.resetProtection();
 
-        // Проверяем финальный статус через 600 мс
-        QTimer::singleShot(600, this, [this]() {
+        // Ждем 500 мс, пока сброс завершится, затем подаем питание
+        QTimer::singleShot(500, this, [this]() {
+            // Если запуск прервали кнопкой СТОП
             if (startup_step != 3) {
                 emit logMessage("SystemManager: Startup interrupted.");
                 return; 
             }
-            
-            // 4. Переходим в режим ожидания подтверждения статуса
-            startup_step = 4;
-            power.requestRegisters();
 
-            // Таймаут 500мс на подтверждение включения
+            // 4. Подаем питание (~ 500 мс)
+            startup_step = 4;
+            power.setPowerState(true);
+
+            // Проверяем финальный статус через 500 мс
             QTimer::singleShot(500, this, [this]() {
                 if (startup_step != 4) {
                     emit logMessage("SystemManager: Startup interrupted.");
                     return; 
                 }
+                
+                // 5. Переходим в режим ожидания подтверждения статуса
+                startup_step = 5;
+                power.requestRegisters();
 
-                uint8_t status = power.getStatusFlags();
-                if (status & 0x01) { 
-                    // Бит питания успешно установился
-                    emit logMessage("SystemManager: System started successfully.");
-                    is_system_ok = true;
-                    dataLogTimer->start(SettingsManager::instance().get("log_intervalMs").toInt());
-                    startup_step = 0; // Завершили запуск
-                    emit busyStateChanged(false);
-                }
-                else if (status == 0x00) {
-                    emit logMessage("SystemManager: Warning! Timeout for startup.");
-                    stopSystem();
-                }
-                else {
-                    // Если питание не включилось и висит аппаратная ошибка
-                    if (status & 0x02) {
-                        emit logMessage("SystemManager: Out protection 1!.");
+                // Таймаут 500мс на подтверждение включения
+                QTimer::singleShot(500, this, [this]() {
+                    if (startup_step != 5) {
+                        emit logMessage("SystemManager: Startup interrupted.");
+                        return; 
                     }
-                    if (status & 0x04) {
-                        emit logMessage("SystemManager: Out protection 2!.");
-                    }
-                    if (status & 0x08) {
-                        emit logMessage("SystemManager: Temperature protection!.");
-                    }
-                    if (status & 0x10) {
-                        emit logMessage("SystemManager: Invertor error!.");
-                    }
-                    if (status & 0x20) {
-                        emit logMessage("SystemManager: Phases error!.");
-                    }
-                    stopSystem();
-                    return;
-                }
 
+                    uint8_t status = power.getStatusFlags();
+                    if (status & 0x01) { 
+                        // Бит питания успешно установился
+                        emit logMessage("SystemManager: System started successfully.");
+                        // Сброс таймеров
+                        qint64 now = QDateTime::currentMSecsSinceEpoch();
+                        lastPowerMsgTime = now;
+                        lastSensorMsgTime = now;
+                        lastCoolMsgTime = now;
+
+                        is_system_ok = true;
+                        dataLogTimer->start(SettingsManager::instance().get("log_intervalMs").toInt());
+                        startup_step = 0; // Завершили запуск
+                        emit busyStateChanged(false);
+                    }
+                    else if (status == 0x00) {
+                        emit logMessage("SystemManager: Warning! Timeout for startup.");
+                        stopSystem();
+                    }
+                    else {
+                        // Если питание не включилось и висит аппаратная ошибка
+                        if (status & 0x02) {
+                            emit logMessage("SystemManager: Out protection 1!.");
+                        }
+                        if (status & 0x04) {
+                            emit logMessage("SystemManager: Out protection 2!.");
+                        }
+                        if (status & 0x08) {
+                            emit logMessage("SystemManager: Temperature protection!.");
+                        }
+                        if (status & 0x10) {
+                            emit logMessage("SystemManager: Invertor error!.");
+                        }
+                        if (status & 0x20) {
+                            emit logMessage("SystemManager: Phases error!.");
+                        }
+                        stopSystem();
+                        return;
+                    }
+
+                });
             });
         });
-    });
+    }
 }
 
 void SystemManager::stopSystem() {
@@ -189,6 +224,9 @@ void SystemManager::stopSystem() {
     // canBus.sendCommand(power.getTargetId(), 0x00, {}); // Выключаем измерения АЦП
     
     // canBus.close();
+    cdacResponded = false;
+    cacResponded = false;
+    arduinoResponded = false;
     is_system_ok = false;
     emit busyStateChanged(false);
     emit logMessage("SystemManager: System is off.");
@@ -209,14 +247,22 @@ void SystemManager::handleIncomingPacket(const CAN_PACKET& pkt) {
         }
     } else if (sensors.isMyReply(pkt.CAN_ID)) {
         lastSensorMsgTime = currentTime; // Сброс таймаута
-        if (startup_step == 2 && pkt.data[0] == 0xFF) {
+        if (startup_step == 1 && pkt.data[0] == 0xFF) {
             emit logMessage("SystemManager: CAC208 responded.");
             cacResponded = true;
         }
         else {
             sensors.handleMessage(pkt);
         }
-    } else handleUnexpectedPacket(pkt);
+    } else if (cooling.isMyReply(pkt.CAN_ID)) {
+        if (startup_step == 1 && pkt.data[0] == 0xFF) {
+            emit logMessage("SystemManager: Arduino responded.");
+            arduinoResponded = true;
+        }
+        lastCoolMsgTime = currentTime; // Сброс таймаута
+        cooling.handleMessage(pkt);
+    }
+    else handleUnexpectedPacket(pkt);
 }
 
 void SystemManager::handleUnexpectedPacket(const CAN_PACKET& pkt) {
@@ -236,11 +282,15 @@ void SystemManager::update() {
     // Проверка таймаутов (только если система запущена)
     if (is_system_ok) {
         if ((now - lastPowerMsgTime) > 1000) {
-            emit logMessage("SystemManager: ERROR! Lost connection with CDAC20 (Timeout)!");
+            emit logMessage("SystemManager: ERROR! Lost connection with CDAC20 (power), timeout!");
             stopSystem();
         }
         if ((now - lastSensorMsgTime) > 1000) {
-            emit logMessage("SystemManager: ERROR! Lost connection with CAC208 (Timeout)!");
+            emit logMessage("SystemManager: ERROR! Lost connection with CAC208 (sensors), timeout!");
+            stopSystem();
+        }
+        if ((now - lastCoolMsgTime) > 1000) {
+            emit logMessage("SystemManager: ERROR! Lost connection with Arduino (cooling), Timeout!");
             stopSystem();
         }
     }
@@ -273,65 +323,34 @@ void SystemManager::checkInterlocks(float flow, float temp, uint8_t power_status
     if (alarm) stopSystem();
 }
 
-void SystemManager::setCurrent(float amperes) {
-    if (is_system_ok) {
+void SystemManager::setCurrent(float amperes, bool manual) {
+    if (is_system_ok || manual) {
         power.setCurrent(amperes);
     } else {
         emit logMessage("SystemManager: Warning! Trying to set current while system is off.");
     }
 }
 
-void SystemManager::saveLogToFile(const QString& formattedMsg) {
-    // Создаем папку Logs, если её нет
-    QDir dir;
-    if (!dir.exists("Logs")) {
-        dir.mkdir("Logs");
-    }
-
-    // Формируем имя файла DD-MM-YYYY.txt
-    QString fileName = QDateTime::currentDateTime().toString("dd-MM-yyyy") + ".txt";
-    QFile file("Logs/" + fileName);
-
-    // Открываем в режиме Append (дозапись)
-    if (file.open(QIODevice::Append | QIODevice::Text)) {
-        QTextStream out(&file);
-        // out.setEncoding(QStringConverter::Encoding::Utf8); // Для корректной поддержки кириллицы
-        out << formattedMsg << "\n";
-        file.close();
+void SystemManager::onLogMessageReceived(const QString& formattedMsg) {
+    QString fileName = "Log-" + QDateTime::currentDateTime().toString("dd-MM-yyyy");
+    
+    if (m_eventLogger) {
+        m_eventLogger->log("Logs", fileName, formattedMsg);
     }
 }
 
-void SystemManager::saveDataLogToFile() {
-    QJsonObject root;
-    // Используем миллисекунды для точной привязки к оси QDateTimeAxis в графиках
-    root["time"] = static_cast<double>(QDateTime::currentMSecsSinceEpoch());
-
-    QJsonObject power;
-    power["current"] = getCurrent();
-
-    QJsonObject cool;
-    cool["temp"] = getTemp();
-    cool["flow"] = getFlow();
-
-    QJsonObject sensors;
-    sensors["hall"] = getHall();
-    sensors["ioncurrent"] = getFaraday();
-    sensors["pressure"] = SensorController::getPressFromVolt(getVacuum());
-
-    root["powercontroller"] = power;
-    root["coolcontroller"] = cool;
-    root["sensorcontroller"] = sensors;
-
-    QJsonDocument doc(root);
-    QString fileName = "Data-" + QDateTime::currentDateTime().toString("dd-MM-yyyy") + ".jsonl";
+void SystemManager::onDataLogTimeout() {
+    QString fileName = "Data-" + QDateTime::currentDateTime().toString("dd-MM-yyyy");
     
-    QDir dir;
-    if (!dir.exists("Logs")) dir.mkdir("Logs");
-    QFile file("Logs/" + fileName);
-    
-    if (file.open(QIODevice::Append | QIODevice::Text)) {
-        QTextStream out(&file);
-        out << doc.toJson(QJsonDocument::Compact) << "\n";
-        file.close();
+    QVariantMap data;
+    data["timestamp"]   = QDateTime::currentMSecsSinceEpoch();
+    data["current"]     = getCurrent();
+    data["temp"]        = getTemp();
+    data["flow"]        = getFlow();
+    data["hall"]        = getHall();
+    data["ioncurrent"]  = getFaraday();
+    data["pressure"]    = sensors.getPressFromVolt(getVacuum()); 
+    if (m_telemetryLogger) {
+        QThreadPool::globalInstance()->start(new LogTask(m_telemetryLogger.get(), "Logs", fileName, data));
     }
 }

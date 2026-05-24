@@ -1,5 +1,8 @@
 #include <QApplication>
 #include "QtUI.h"
+#include "Manager.h"
+#include "LoggerCSV.h"
+#include "LoggerTXT.h"
 
 int main(int argc, char *argv[])
 {
@@ -10,10 +13,16 @@ int main(int argc, char *argv[])
     QApplication a(argc, argv);
 
     // Установка имени приложения (полезно для настроек и заголовков)
-    a.setApplicationName("Power Supply Control System (VCH-300)");
+    a.setApplicationName("Accelerator Mass-Spectrometer Control");
     a.setApplicationVersion("1.0.0");
 
-    MainWindow w;
+    auto txtLogger = std::make_unique<LoggerTXT>();
+    QStringList csvHeaders = {"timestamp", "current", "temp", "flow", "hall", "ioncurrent", "pressure"};
+    auto csvLogger = std::make_unique<LoggerCSV>(csvHeaders);
+    
+    SystemManager manager(std::move(txtLogger), std::move(csvLogger));
+
+    MainWindow w(&manager);
     w.show();
 
     return a.exec();

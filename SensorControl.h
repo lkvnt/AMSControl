@@ -13,6 +13,10 @@ public:
 
     void setCanInterface(CanBusManager* can_interface);
 
+    void requestConnection();
+    void requestDataFlow();
+    void stopDataFlow();
+
     // Обработка пакета
     void processADCData(const CAN_PACKET& rcv);
 

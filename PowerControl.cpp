@@ -2,12 +2,15 @@
 #include "SettingsManager.h"
 
 PowerSupplyController::PowerSupplyController(QObject* parent) 
-    : QObject(parent), can(nullptr), current_actual(0.0f), status_flags(0), isBusy(false) {
+    : QObject(parent), can(nullptr), current_actual(0.0f), voltage_actual(0.0f), status_flags(0), isBusy(false) {
         dev_id = SettingsManager::instance().get("power_deviceId").toInt();
     }
 
 void PowerSupplyController::setCanInterface(CanBusManager* can_interface) {
-    if (can) return;
+    if (can) {
+        emit logMessage("Power Control: CAN is already connected.");
+        return;
+    }
     can = can_interface;
     emit logMessage("Power Control: CAN interface connected.");
 }
@@ -28,6 +31,7 @@ bool PowerSupplyController::isMyReply(uint32_t can_id) const {
 
 void PowerSupplyController::setPowerState(bool turnOn) {
     // F9 - Выходной регистр: бит 0 = ВКЛ (Контакты 30,12), бит 1 = ВЫКЛ (Контакты 31,13)
+    // Чтобы включить, нужно замкнуть 31 и 13, и нажать/замкнуть 30 и 12
     if (!can) {
         emit logMessage("Power Control: Warning! CAN is not initialized.");
         return;
@@ -43,7 +47,7 @@ void PowerSupplyController::setPowerState(bool turnOn) {
     uint8_t state = turnOn ? 0x03 : 0x00; 
 
     can->sendCommand(getTargetId(), 0xF9, {state});
-    QTimer::singleShot(500, this, [this, turnOn]() {
+    QTimer::singleShot(300, this, [this, turnOn]() {
         if (!can) {
             emit logMessage("Power Control: Warning! CAN is not initialized.");
             isBusy = false;
@@ -111,7 +115,7 @@ void PowerSupplyController::resetProtection() {
         
         can->sendCommand(getTargetId(), 0xF9, {0x00});
         
-        QTimer::singleShot(2000, this, [this]() {
+        QTimer::singleShot(300, this, [this]() {
             isBusy = false;
             emit deviceBusyStateChanged(false);
             emit logMessage("Power Control: Reset completed.");
@@ -120,7 +124,10 @@ void PowerSupplyController::resetProtection() {
 }
 
 void PowerSupplyController::requestRegisters() {
-    if (!can) return;
+    if (!can) {
+        emit logMessage("Power Control: Warning! CAN is not initialized.");
+        return;
+    }
     can->sendCommand(getTargetId(), 0xF8, {});
 }
 
@@ -139,6 +146,30 @@ void PowerSupplyController::processADCData(const CAN_PACKET& rcv) {
         float clamped_voltage = voltage_actual < 0.0f ? 0.0f : voltage_actual;
         current_actual = (clamped_voltage / 8.0f) * 300.0f; 
     }
+}
+
+void PowerSupplyController::requestConnection() {
+    if (!can) {
+        emit logMessage("Power Control: Warning! CAN is not initialized.");
+        return;
+    }
+    can->sendCommand(getTargetId(), {0xFF});
+}
+
+void PowerSupplyController::requestDataFlow() {
+    if (!can) {
+        emit logMessage("Power Control: Warning! CAN is not initialized.");
+        return;
+    }
+    can->sendCommand(getTargetId(), 0x02, {0x00, 0x07, 0x30});
+}
+
+void PowerSupplyController::stopDataFlow() {
+    if (!can) {
+        emit logMessage("Power Control: Warning! CAN is not initialized.");
+        return;
+    }
+    can->sendCommand(getTargetId(), {0x00});
 }
 
 void PowerSupplyController::processRegisterData(const CAN_PACKET& rcv) {

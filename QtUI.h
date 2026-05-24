@@ -11,15 +11,17 @@
 #include <QtCharts/QChartView>
 #include <QtCharts/QLineSeries>
 #include <QListWidget>
-#include <QJsonObject>
-#include <QJsonDocument>
-#include "Manager.h"
+// #include <QJsonObject>
+// #include <QJsonDocument>
+
+class SystemManager;
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
 
 public:
-    MainWindow(QWidget *parent = nullptr);
+    MainWindow(SystemManager *manager, QWidget *parent = nullptr);
+    ~MainWindow() = default;
 
 private slots:
     void onTimerTick();          
@@ -36,7 +38,7 @@ private:
     void setupUI();
     void updateLamps(uint8_t status);
     
-    SystemManager manager;
+    SystemManager *m_manager;
     QTimer *updateTimer;
 
     QLabel *tempLabel;

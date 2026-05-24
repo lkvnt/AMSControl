@@ -42,7 +42,7 @@ void SettingsManager::createDefault() {
     m_settings["update_frequency"] = 10;
     m_settings["power_deviceId"] = 0x16;
     m_settings["cool_mockTemp"] = 24.5;
-    m_settings["cool_mockFlow"] = 12.8;
+    m_settings["cool_deviceId"] = 0x3C;
     m_settings["sensor_deviceId"] = 0x3E;
     m_settings["sensor_chanFaraday"] = 0x12;
     m_settings["sensor_chanHall"] = 0x11;

@@ -6,6 +6,7 @@
 #include "CoolControl.h"
 #include "CanBusManager.h"
 #include "SensorControl.h"
+#include "Logger.h"
 
 /*
  * Класс SystemManager объединяет все подсистемы установки.
@@ -14,7 +15,9 @@
 class SystemManager : public QObject {
     Q_OBJECT
 public:
-    explicit SystemManager(QObject* parent = nullptr);
+    explicit SystemManager(std::unique_ptr<Logger> eventLogger,
+                           std::unique_ptr<Logger> telemetryLogger,
+                           QObject* parent = nullptr);
     ~SystemManager();
 
     // Инициализация PCI-7841
@@ -28,7 +31,7 @@ public:
     void update(); 
 
     // --- Проброс команд к питанию ---
-    void setCurrent(float amperes);
+    void setCurrent(float amperes, bool manual = false);
 
     // --- Геттеры для интерфейса (получение текущих значений) ---
     float getTemp() const { return cooling.getTemperature(); }
@@ -50,7 +53,8 @@ public:
     void manualPowerOn() { power.setPowerState(true); }
     void manualPowerOff() { power.setPowerState(false); }
     void manualResetProt() { power.resetProtection(); }
-    void manualCoolingOn() { cooling.setPumpState(true); cooling.setCoolerState(true); }
+    void manualSetCurrent(float amperes) { setCurrent(amperes, true); }
+    void manualCoolingOn() { cooling.setPumpState(true); cooling.setCoolerState(true); cooling.requestDataFlow();}
     void manualCoolingOff() { cooling.setPumpState(false); cooling.setCoolerState(false); }
 
 signals:
@@ -59,6 +63,9 @@ signals:
 
 private slots:
     void handleIncomingPacket(const CAN_PACKET& pkt);
+
+    void onLogMessageReceived(const QString& msg);
+    void onDataLogTimeout();
 
 private:
     CanBusManager canBus;
@@ -69,7 +76,7 @@ private:
     bool is_system_ok = false;
     volatile int startup_step = 0; // 0 - простой, 1 - ждем пинг FF, 2 - сброс ошибок, 3 - попытка включения, 4 - проверка статуса
     
-    void continueStartSystem();
+    void continueStartSystem(int step);
 
     // Внутренние методы проверки условий
     QTimer *updateTimer;
@@ -80,16 +87,20 @@ private:
 
     // Логирование
     QTimer *dataLogTimer;
-    void saveLogToFile(const QString& msg);
-    void saveDataLogToFile();
+    std::unique_ptr<Logger> m_eventLogger;
+    std::unique_ptr<Logger> m_telemetryLogger;
+    // void saveLogToFile(const QString& msg);
+    // void saveDataLogToFile();
 
     // Контроль блоков на линии
     bool cdacResponded = false;
     bool cacResponded = false;
+    bool arduinoResponded = false;
 
     // Контроль таймаутов
     qint64 lastPowerMsgTime = 0;
     qint64 lastSensorMsgTime = 0;
+    qint64 lastCoolMsgTime = 0;
 };
 
 #endif // SYSTEM_MANAGER_H

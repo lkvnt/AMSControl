@@ -5,8 +5,8 @@
 #include <QTimer>
 #include <vector>
 #include <cstdint>
-#include <QJsonObject>
-#include <QJsonDocument>
+// #include <QJsonObject>
+// #include <QJsonDocument>
 
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
@@ -22,6 +22,7 @@ public:
 
     bool init(int card = 0, int port = 0);
     void close();
+    bool sendCommand(uint32_t target_id, const std::vector<uint8_t>& payload);
     bool sendCommand(uint32_t target_id, uint8_t cmd, const std::vector<uint8_t>& payload);
 
     bool isOpen() const { return card_handle != -1; }

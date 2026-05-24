@@ -18,7 +18,10 @@ public:
     void setCurrent(float amperes);
     void resetProtection();
 
+    void requestConnection();
     void requestRegisters();
+    void requestDataFlow();
+    void stopDataFlow();
 
     void processADCData(const CAN_PACKET& rcv);
     void processRegisterData(const CAN_PACKET& rcv);

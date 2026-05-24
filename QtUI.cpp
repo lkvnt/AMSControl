@@ -7,22 +7,26 @@
 #include <QDesktopServices>
 #include <QUrl>
 #include <QGroupBox>
+#include "Manager.h"
 #include "DataViewerWindow.h"
 #include "QtUI.h"
 #include "SettingsDialog.h"
 #include "SettingsManager.h"
 
-MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), time_axis(0.0f) {
+MainWindow::MainWindow(SystemManager *manager, QWidget *parent)
+    : QMainWindow(parent), m_manager(manager), time_axis(0.0f)
+{
     setupUI();
     resize(900, 700);
 
     updateFreq = SettingsManager::instance().get("update_frequency").toInt();
+    if (updateFreq <= 0) updateFreq = 10;
 
     // Подписываемся на логи Менеджера и выводим в StatusBar
-    connect(&manager, &SystemManager::logMessage, this, &MainWindow::onLogMessage);
+    connect(m_manager, &SystemManager::logMessage, this, &MainWindow::onLogMessage);
 
     // Подписываемся на сигнал занятости
-    connect(&manager, &SystemManager::busyStateChanged, this, &MainWindow::onBusyStateChanged);
+    connect(m_manager, &SystemManager::busyStateChanged, this, &MainWindow::onBusyStateChanged);
 
     updateTimer = new QTimer(this);
     connect(updateTimer, &QTimer::timeout, this, &MainWindow::onTimerTick);
@@ -30,7 +34,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), time_axis(0.0f) {
 
     onBusyStateChanged(false);
     QTimer::singleShot(200, this, [this]() {
-        manager.initHardware();
+        m_manager->initHardware();
     });
 }
 
@@ -80,12 +84,12 @@ void MainWindow::setupUI() {
     connect(mainSettingsBtn, &QPushButton::clicked, [this]() {
         SettingsDialog dlg("Главная", this);
 
-        connect(&dlg, &SettingsDialog::reqPowerOn, &manager, &SystemManager::manualPowerOn);
-        connect(&dlg, &SettingsDialog::reqPowerOff, &manager, &SystemManager::manualPowerOff);
-        connect(&dlg, &SettingsDialog::reqResetProt, &manager, &SystemManager::manualResetProt);
-        connect(&dlg, &SettingsDialog::reqSetCurrent, &manager, &SystemManager::setCurrent);
-        connect(&dlg, &SettingsDialog::reqCoolingOn, &manager, &SystemManager::manualCoolingOn);
-        connect(&dlg, &SettingsDialog::reqCoolingOff, &manager, &SystemManager::manualCoolingOff);
+        connect(&dlg, &SettingsDialog::reqPowerOn, m_manager, &SystemManager::manualPowerOn);
+        connect(&dlg, &SettingsDialog::reqPowerOff, m_manager, &SystemManager::manualPowerOff);
+        connect(&dlg, &SettingsDialog::reqResetProt, m_manager, &SystemManager::manualResetProt);
+        connect(&dlg, &SettingsDialog::reqSetCurrent, m_manager, &SystemManager::manualSetCurrent);
+        connect(&dlg, &SettingsDialog::reqCoolingOn, m_manager, &SystemManager::manualCoolingOn);
+        connect(&dlg, &SettingsDialog::reqCoolingOff, m_manager, &SystemManager::manualCoolingOff);
 
         dlg.exec();
     });
@@ -291,7 +295,7 @@ void MainWindow::setupUI() {
 
     textLogLayout->addWidget(logFileList);
 
-    // JSON формат логов (с измерениями)
+    // Логи (с измерениями)
     auto *dataLogLayout = new QVBoxLayout();
     dataLogLayout->addWidget(new QLabel("Логи телеметрии (двойной клик - графики):"));
     dataFileList = new QListWidget();
@@ -375,23 +379,23 @@ void MainWindow::refreshLogList() {
     QDir dir("Logs");
     if (!dir.exists()) return;
 
-    // Загрузка текстовых логов
-    dir.setNameFilters(QStringList() << "*.txt");
-    QFileInfoList txtList = dir.entryInfoList(QDir::Files, QDir::Time);
-    for (const QFileInfo& fi : txtList) {
-        logFileList->addItem(fi.fileName());
-    }
+    dir.setFilter(QDir::Files | QDir::NoSymLinks);
+    dir.setSorting(QDir::Time);
+    
+    QFileInfoList allFiles = dir.entryInfoList();
 
-    // Загрузка логов данных
-    dir.setNameFilters(QStringList() << "*.jsonl");
-    QFileInfoList dataList = dir.entryInfoList(QDir::Files, QDir::Time);
-    for (const QFileInfo& fi : dataList) {
-        dataFileList->addItem(fi.fileName());
+    for (const QFileInfo& fi : allFiles) {
+        QString fileName = fi.fileName();
+        
+        if (fileName.startsWith("Data")) {
+            dataFileList->addItem(fileName); // Это телеметрия
+        } else {
+            logFileList->addItem(fileName);  // Это события системы
+        }
     }
 }
 
 void MainWindow::onLogFileDoubleClicked(QListWidgetItem *item) {
-    // Получаем полный путь к выбранному текстовому файлу
     QString filePath = QDir::currentPath() + "/Logs/" + item->text();
     
     // Открываем файл средствами операционной системы (например, в Блокноте)
@@ -409,12 +413,13 @@ void MainWindow::onDataFileDoubleClicked(QListWidgetItem *item) {
 
 void MainWindow::onTimerTick() {
     // Обновление глобальной панели
-    globalCurrent->setText(QString("Ток: %1 А").arg(manager.getCurrent(), 0, 'f', 2));
-    globalTemp->setText(QString("Темп: %1 °C").arg(manager.getTemp(), 0, 'f', 1));
+    globalCurrent->setText(QString("Ток: %1 А").arg(m_manager->getCurrent(), 0, 'f', 2));
+    globalTemp->setText(QString("Темп: %1 °C").arg(m_manager->getTemp(), 0, 'f', 1));
 
-    uint8_t status = manager.getStatusFlags();
+    uint8_t status = m_manager->getStatusFlags();
     bool isPowerOn = (status & 0x01);
-    bool hasError = (status & 0x3E) || !manager.isOk() && manager.isBusy();
+    // bool hasError = (status & 0x3E) || !manager.isOk() && manager.isBusy();
+    bool hasError = (status & 0x3E) != 0;
 
     QString ledStyle = "border-radius: 5px; min-width: 90px; min-height: 25px; font-weight: bold; font-size: 12px; color: white;";
     globalPowerLed->setStyleSheet(ledStyle + (isPowerOn ? "background-color: green;" : "background-color: gray;"));
@@ -424,14 +429,14 @@ void MainWindow::onTimerTick() {
     auto setCol = [](QLabel* l, bool cond, const char* cOn, const char* cOff) {
         l->setStyleSheet(QString("border-radius:5px; min-width:90px; min-height:25px; font-weight: bold; font-size:10px; color:white; background-color: %1;").arg(cond ? cOn : cOff));
     };
-    setCol(pumpLed, manager.getPumpState(), "lightgreen", "gray");
-    setCol(radiatorLed, manager.getPumpState(), "lightgreen", "gray");
-    tempLabel->setText(QString("Температура: %1 °C").arg(manager.getTemp()));
-    flowLabel->setText(QString("Поток: %1 л/мин").arg(manager.getFlow()));
+    setCol(pumpLed, m_manager->getPumpState(), "lightgreen", "gray");
+    setCol(radiatorLed, m_manager->getCoolState(), "lightgreen", "gray");
+    tempLabel->setText(QString("Температура: %1 °C").arg(m_manager->getTemp()));
+    flowLabel->setText(QString("Поток: %1 л/мин").arg(m_manager->getFlow()));
 
     // Обновление графика
-    float cur = manager.getCurrent();
-    float volt = manager.getAdcVoltage();
+    float cur = m_manager->getCurrent();
+    float volt = m_manager->getAdcVoltage();
 
     currentValLabel->setText(QString("Текущий ток: %1 А").arg(cur, 0, 'f', 2));
     adcVoltLabel->setText(QString("Напряжение АЦП: %1 В").arg(volt, 0, 'f', 4));
@@ -442,15 +447,15 @@ void MainWindow::onTimerTick() {
     time_axis += 1.0 / updateFreq;
     
     // Обновление лампочек состояния
-    updateLamps(manager.getStatusFlags());
+    updateLamps(m_manager->getStatusFlags());
 
     // Обновление общих измерений
-    faradayLabel->setText(QString("Цилиндр Фарадея: \t %1 В").arg(manager.getFaraday(), 0, 'f', 4));
+    faradayLabel->setText(QString("Цилиндр Фарадея: \t %1 В").arg(m_manager->getFaraday(), 0, 'f', 4));
     
     // Датчик Холла умножаем на 1000, чтобы отобразить в милливольтах
-    hallLabel->setText(QString("Датчик Холла: \t\t %1 мВ").arg(manager.getHall() * 1000.0f, 0, 'f', 2));
+    hallLabel->setText(QString("Датчик Холла: \t\t %1 мВ").arg(m_manager->getHall() * 1000.0f, 0, 'f', 2));
     
-    float vacuum_v = manager.getVacuum();
+    float vacuum_v = m_manager->getVacuum();
     vacuumVoltLabel->setText(QString("Вакуум (Вольт): \t %1 В").arg(vacuum_v, 0, 'f', 4));
 
     vacuum_v = std::max(0.0f, std::min(10.0f, vacuum_v));
@@ -481,14 +486,14 @@ void MainWindow::updateLamps(uint8_t status) {
 }
 
 void MainWindow::onBusyStateChanged(bool isBusy) {
-    startBtn->setEnabled(!manager.isOk() && !isBusy);
-    stopBtn->setEnabled(manager.isOk() || isBusy); 
-    setBtn->setEnabled(manager.isOk() && !isBusy);
-    currentSpinBox->setEnabled(manager.isOk() && !isBusy);
+    startBtn->setEnabled(!m_manager->isOk() && !isBusy);
+    stopBtn->setEnabled(m_manager->isOk() || isBusy); 
+    setBtn->setEnabled(m_manager->isOk() && !isBusy);
+    currentSpinBox->setEnabled(m_manager->isOk() && !isBusy);
 }
 
-void MainWindow::handleStart() { manager.startSystem(); }
+void MainWindow::handleStart() { m_manager->startSystem(); }
 
-void MainWindow::handleStop() { manager.stopSystem(); }
+void MainWindow::handleStop() { m_manager->stopSystem(); }
 
-void MainWindow::handleSetCurrent() { manager.setCurrent(currentSpinBox->value()); }
+void MainWindow::handleSetCurrent() { m_manager->setCurrent(currentSpinBox->value()); }
