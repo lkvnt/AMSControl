@@ -36,6 +36,8 @@ public:
     bool isMyReply(uint32_t can_id) const;
     bool isDeviceBusy() const { return isBusy; }
 
+    const uint8_t REGISTER_HAS_ERROR = 0x3E;
+
 signals:
     void logMessage(const QString& msg);
     void deviceBusyStateChanged(bool isBusy);

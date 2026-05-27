@@ -1,5 +1,6 @@
-#include "CanBusManager.h"
 #include <QString>
+#include "CanBusManager.h"
+#include "SettingsManager.h"
 
 CanBusManager::CanBusManager(QObject* parent) : QObject(parent), card_handle(-1) {
     pollTimer = new QTimer(this);
@@ -36,7 +37,8 @@ bool CanBusManager::init(int card, int port) {
     CanEnableReceive(card_handle);
     emit logMessage("CAN: Init success.");
 
-    pollTimer->start(10);
+    int pollTimerValue = SettingsManager::instance().get("can_bus_poll_timer").toInt();
+    pollTimer->start(pollTimerValue);
 
     return true;
 }
@@ -81,7 +83,6 @@ void CanBusManager::pollCanBus() {
     if (card_handle < 0) return;
     
     CAN_PACKET pkt;
-    // Вычитываем все пакеты из буфера драйвера, пока они там есть
     while (CanRcvMsg(card_handle, &pkt) == 0) {
         emit packetReceived(pkt);
     }

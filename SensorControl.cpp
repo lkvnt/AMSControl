@@ -2,6 +2,15 @@
 #include "SensorControl.h"
 #include "SettingsManager.h"
 
+#define PRIORITY_SEND 0b101
+#define PRIORITY_RECEIVE 0b111
+
+enum Command {
+    STOP_MEASURE = 0x00,
+    START_MEASURE = 0x01,
+    CHECK_CONNECT = 0xFF
+};
+
 SensorController::SensorController(QObject* parent) 
     : QObject(parent), can(nullptr), faraday_v(0), hall_v(0), vacuum_v(0) {
         dev_id = SettingsManager::instance().get("sensor_deviceId").toInt();
@@ -24,7 +33,7 @@ void SensorController::requestDataFlow() {
     uint8_t chHall = sm.get("sensor_chanHall").toInt();
     uint8_t chFaraday = sm.get("sensor_chanFaraday").toInt();
     uint8_t chVacuum = sm.get("sensor_chanVacuum").toInt();
-    can->sendCommand(getTargetId(), 0x01, { std::min({chHall, chFaraday, chVacuum}),
+    can->sendCommand(getTargetId(), Command::START_MEASURE, { std::min({chHall, chFaraday, chVacuum}),
                                             std::max({chHall, chFaraday, chVacuum}),
                                             0x07, 0x30, 0x00});
 }
@@ -34,7 +43,7 @@ void SensorController::requestConnection() {
         emit logMessage("SensorControl: Warning! CAN is not initialized.");
         return;
     }
-    can->sendCommand(getTargetId(), {0xFF});
+    can->sendCommand(getTargetId(), {Command::CHECK_CONNECT});
 }
 
 void SensorController::stopDataFlow() {
@@ -42,44 +51,42 @@ void SensorController::stopDataFlow() {
         emit logMessage("SensorControl: Warning! CAN is not initialized.");
         return;
     }
-    can->sendCommand(getTargetId(), {0x00});
+    can->sendCommand(getTargetId(), {Command::STOP_MEASURE});
 }
 
 uint32_t SensorController::getTargetId() const {
-    return (6 << 8) | (dev_id << 2);
+    return (PRIORITY_SEND << 8) | (dev_id << 2);
 }
 
 bool SensorController::isMyReply(uint32_t can_id) const {
-    uint32_t base_reply_id = (7 << 8) | (dev_id << 2);
+    uint32_t base_reply_id = (PRIORITY_RECEIVE << 8) | (dev_id << 2);
     return (can_id & 0x7FC) == base_reply_id;
 }
 
 void SensorController::processADCData(const CAN_PACKET& rcv) {
     SettingsManager &sm = SettingsManager::instance();
     if (rcv.len >= 5) {
-        uint8_t channel = rcv.data[1]; // У CAC208 канал передается в data[1]
+        uint8_t channel = rcv.data[1];
         uint32_t adc_code = (rcv.data[4] << 16) | (rcv.data[3] << 8) | rcv.data[2];
 
-        // sign extend 24-bit
         if (adc_code & 0x800000) {
             adc_code |= 0xFF000000;
         }
 
-        // Базовое преобразование +-10В
         float voltage = (static_cast<int32_t>(adc_code) / static_cast<float>(0x3FFFFF)) * 10.0f;
 
         uint8_t chHall = sm.get("sensor_chanHall").toInt();
         uint8_t chFaraday = sm.get("sensor_chanFaraday").toInt();
         uint8_t chVacuum = sm.get("sensor_chanVacuum").toInt();
-        // Распределяем по переменным в зависимости от канала
+
         if (channel == chHall) {
-            hall_v = voltage; // Датчик Холла (INM17, INP17)
+            hall_v = voltage;
         } 
         else if (channel == chFaraday) {
-            faraday_v = voltage;    // Цилиндр Фарадея (INM18, INP18)
+            faraday_v = voltage;
         } 
         else if (channel == chVacuum) {
-            vacuum_v = voltage;  // ВМБ-14 вакуум (INM19, INP19)
+            vacuum_v = voltage;
         }
     }
 }
@@ -94,7 +101,7 @@ float SensorController::getPressFromVolt(float volt) {
 
 void SensorController::handleMessage(const CAN_PACKET& pkt) {
     uint8_t cmd = pkt.data[0];
-    if (cmd == 0x01) {
+    if (cmd == Command::START_MEASURE) {
         processADCData(pkt);
     } else {
         QString hexData;

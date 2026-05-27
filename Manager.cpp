@@ -15,34 +15,30 @@ SystemManager::SystemManager(std::unique_ptr<Logger> eventLogger,
         m_eventLogger(std::move(eventLogger)),
         m_telemetryLogger(std::move(telemetryLogger))
 {
-    // Проброс логов от всех подсистем наверх, в Manager
     connect(&canBus, &CanBusManager::logMessage, this, &SystemManager::logMessage);
     connect(&power, &PowerSupplyController::logMessage, this, &SystemManager::logMessage);
     connect(&cooling, &CoolingController::logMessage, this, &SystemManager::logMessage);
     connect(&sensors, &SensorController::logMessage, this, &SystemManager::logMessage);
 
-    // Парсер пакетов
     connect(&canBus, &CanBusManager::packetReceived, this, &SystemManager::handleIncomingPacket);
 
-    // Проброс сигнала занятости дальше
     connect(&power, &PowerSupplyController::deviceBusyStateChanged, this, [this]() {
         emit busyStateChanged(this->isBusy());
     });
 
-    // Логирование
     connect(this, &SystemManager::logMessage, this, &SystemManager::onLogMessageReceived);
     dataLogTimer = new QTimer(this); // Старт таймера будет при включении системы
     connect(dataLogTimer, &QTimer::timeout, this, &SystemManager::onDataLogTimeout);
 
-    // Таймер на обновление статуса
     updateTimer = new QTimer(this);
     connect(updateTimer, &QTimer::timeout, this, &SystemManager::update);
     updateTimer->start(1000.0f / updateFreq);
 }
 
 SystemManager::~SystemManager() {
-    power.stopDataFlow(); // Выключаем измерения АЦП
+    power.stopDataFlow();
     sensors.stopDataFlow();
+    cooling.stopDataFlow();
     stopSystem();
     canBus.close();
 }
@@ -56,15 +52,12 @@ void SystemManager::initHardware() {
         power.setCanInterface(&canBus);
         sensors.setCanInterface(&canBus);
         cooling.setCanInterface(&canBus);
-        emit logMessage("SystemManager: CAN-bus is ready.");
-        
-        // "Прогрев" драйвера (пустой пакет)
-        canBus.sendCommand(0x7FF, 0x00, {}); 
+        emit logMessage("SystemManager: CAN-bus is ready."); 
     }
 }
 
 void SystemManager::startSystem() {
-    if (startup_step != 0 || is_system_ok) return;
+    if (startup_step != 0 || is_running) return;
 
     if (!canBus.isOpen()) {
         emit logMessage("SystemManager: Warning! CAN is not initialized. Stopping.");
@@ -75,9 +68,8 @@ void SystemManager::startSystem() {
     startup_step = 1;
     emit busyStateChanged(true);
 
-    // 1. Проверка наличия CDAC и CAC на линии
     if (startup_step != 1) return;
-    emit logMessage("SystemManager: Checking CDAC20 and CAC208...");
+    emit logMessage("SystemManager: Checking CDAC20, CAC208 and Arduino...");
     power.requestConnection();
     sensors.requestConnection();
     cooling.requestConnection();
@@ -97,17 +89,14 @@ void SystemManager::startSystem() {
             continueStartSystem(startup_step);
         }
     });
-    // Далее после обработки ответных пакетов FF вызовется continueStartSystem
 }
 
 void SystemManager::continueStartSystem(int step) {
     if (step == 2){
-        // Включаем автоматический непрерывный репорт АЦП (0x30 - continuous)
         power.requestDataFlow();
         sensors.requestDataFlow();
         cooling.requestDataFlow();
 
-        // Проверка интерлоков
         QTimer::singleShot(500, this, [this]() {
             if (startup_step != 2) {
                 emit logMessage("SystemManager: Startup interrupted.");
@@ -118,10 +107,10 @@ void SystemManager::continueStartSystem(int step) {
                 emit logMessage("SystemManager: Warning! Temperature too high! Startup process is stopped");
                 stopSystem();
             } else {
-                cooling.setPumpState(true); // При успешном включении => наличии потока ардуино отправит сообщение
+                cooling.setPumpState(true); // Ардуино отправит сообщение о наличии/отсутствии потока
                 cooling.setCoolerState(true);
                 QTimer::singleShot(1000, this, [this]() {
-                    if (!cooling.getPumpState()) {
+                    if (!cooling.getPumpState()) { // Если не поднялся поток то будет false
                         emit logMessage("SystemManager: Warning! Pump error! Startup process is stopped");
                         stopSystem();
                     } else {
@@ -133,33 +122,25 @@ void SystemManager::continueStartSystem(int step) {
         });
     }
     if (step == 3) {
-        // 3. Запускаем сброс защиты (~ 500 мс)
         power.resetProtection();
-
-        // Ждем 500 мс, пока сброс завершится, затем подаем питание
         QTimer::singleShot(500, this, [this]() {
-            // Если запуск прервали кнопкой СТОП
             if (startup_step != 3) {
                 emit logMessage("SystemManager: Startup interrupted.");
                 return; 
             }
 
-            // 4. Подаем питание (~ 500 мс)
             startup_step = 4;
             power.setPowerState(true);
 
-            // Проверяем финальный статус через 500 мс
             QTimer::singleShot(500, this, [this]() {
                 if (startup_step != 4) {
                     emit logMessage("SystemManager: Startup interrupted.");
                     return; 
                 }
-                
-                // 5. Переходим в режим ожидания подтверждения статуса
+
                 startup_step = 5;
                 power.requestRegisters();
 
-                // Таймаут 500мс на подтверждение включения
                 QTimer::singleShot(500, this, [this]() {
                     if (startup_step != 5) {
                         emit logMessage("SystemManager: Startup interrupted.");
@@ -168,17 +149,15 @@ void SystemManager::continueStartSystem(int step) {
 
                     uint8_t status = power.getStatusFlags();
                     if (status & 0x01) { 
-                        // Бит питания успешно установился
                         emit logMessage("SystemManager: System started successfully.");
-                        // Сброс таймеров
                         qint64 now = QDateTime::currentMSecsSinceEpoch();
                         lastPowerMsgTime = now;
                         lastSensorMsgTime = now;
                         lastCoolMsgTime = now;
 
-                        is_system_ok = true;
+                        is_running = true;
                         dataLogTimer->start(SettingsManager::instance().get("log_intervalMs").toInt());
-                        startup_step = 0; // Завершили запуск
+                        startup_step = 0;
                         emit busyStateChanged(false);
                     }
                     else if (status == 0x00) {
@@ -186,7 +165,6 @@ void SystemManager::continueStartSystem(int step) {
                         stopSystem();
                     }
                     else {
-                        // Если питание не включилось и висит аппаратная ошибка
                         if (status & 0x02) {
                             emit logMessage("SystemManager: Out protection 1!.");
                         }
@@ -214,20 +192,18 @@ void SystemManager::continueStartSystem(int step) {
 
 void SystemManager::stopSystem() {
     startup_step = 0;
-    if (!is_system_ok && !canBus.isOpen()) return;
+    if (!is_running && !canBus.isOpen()) return;
     
     emit logMessage("SystemManager: Shutting down...");
     power.setCurrent(0);
     power.setPowerState(false);
     cooling.setPumpState(false);
     cooling.setCoolerState(false);
-    // canBus.sendCommand(power.getTargetId(), 0x00, {}); // Выключаем измерения АЦП
     
-    // canBus.close();
     cdacResponded = false;
     cacResponded = false;
     arduinoResponded = false;
-    is_system_ok = false;
+    is_running = false;
     emit busyStateChanged(false);
     emit logMessage("SystemManager: System is off.");
 }
@@ -236,7 +212,7 @@ void SystemManager::handleIncomingPacket(const CAN_PACKET& pkt) {
     qint64 currentTime = QDateTime::currentMSecsSinceEpoch();
 
     if (power.isMyReply(pkt.CAN_ID)) {
-        lastPowerMsgTime = currentTime; // Сброс таймаута
+        lastPowerMsgTime = currentTime;
         uint8_t cmd = pkt.data[0];
 
         if (startup_step == 1 && cmd == 0xFF) {
@@ -246,7 +222,7 @@ void SystemManager::handleIncomingPacket(const CAN_PACKET& pkt) {
             power.handleMessage(pkt);
         }
     } else if (sensors.isMyReply(pkt.CAN_ID)) {
-        lastSensorMsgTime = currentTime; // Сброс таймаута
+        lastSensorMsgTime = currentTime;
         if (startup_step == 1 && pkt.data[0] == 0xFF) {
             emit logMessage("SystemManager: CAC208 responded.");
             cacResponded = true;
@@ -259,7 +235,7 @@ void SystemManager::handleIncomingPacket(const CAN_PACKET& pkt) {
             emit logMessage("SystemManager: Arduino responded.");
             arduinoResponded = true;
         }
-        lastCoolMsgTime = currentTime; // Сброс таймаута
+        lastCoolMsgTime = currentTime;
         cooling.handleMessage(pkt);
     }
     else handleUnexpectedPacket(pkt);
@@ -279,8 +255,7 @@ void SystemManager::update() {
 
     qint64 now = QDateTime::currentMSecsSinceEpoch();
 
-    // Проверка таймаутов (только если система запущена)
-    if (is_system_ok) {
+    if (is_running) {
         if ((now - lastPowerMsgTime) > 1000) {
             emit logMessage("SystemManager: ERROR! Lost connection with CDAC20 (power), timeout!");
             stopSystem();
@@ -295,14 +270,13 @@ void SystemManager::update() {
         }
     }
 
-    // Авто-АЦП включен, запрашиваем только регистры
     power.requestRegisters(); 
 
     checkInterlocks(cooling.getFlowRate(), cooling.getTemperature(), power.getStatusFlags());
 }
 
 void SystemManager::checkInterlocks(float flow, float temp, uint8_t power_status) {
-    if (startup_step > 0 || !is_system_ok) return; // Когда выключена или включается не проверяем
+    if (startup_step > 0 || !is_running) return;
 
     bool alarm = false;
     
@@ -314,8 +288,7 @@ void SystemManager::checkInterlocks(float flow, float temp, uint8_t power_status
         alarm = true;
         emit logMessage("SystemManager: ALARM! Overheating!");
     }
-    // Бит 1-2 (OutProt), Бит 3 (TempProt), Бит 4 (InvertProt), Бит 5 (PhaseProt) => 0x3E (0011 1110)
-    if (power_status & 0x3E) {
+    if (power_status & power.REGISTER_HAS_ERROR) {
         alarm = true; 
         emit logMessage("SystemManager: ALARM! Power unit hardware defence!");
     }
@@ -324,7 +297,7 @@ void SystemManager::checkInterlocks(float flow, float temp, uint8_t power_status
 }
 
 void SystemManager::setCurrent(float amperes, bool manual) {
-    if (is_system_ok || manual) {
+    if (is_running || manual) {
         power.setCurrent(amperes);
     } else {
         emit logMessage("SystemManager: Warning! Trying to set current while system is off.");

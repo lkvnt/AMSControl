@@ -11,8 +11,6 @@
 #include <QtCharts/QChartView>
 #include <QtCharts/QLineSeries>
 #include <QListWidget>
-// #include <QJsonObject>
-// #include <QJsonDocument>
 
 class SystemManager;
 
@@ -58,7 +56,6 @@ private:
     QLabel *currentValLabel;
     QLabel *adcVoltLabel;
     
-    // Элементы статуса и графиков
     QLabel *globalCurrent;
     QLabel *globalTemp;
     QLabel *globalPowerLed;

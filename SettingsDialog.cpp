@@ -20,15 +20,21 @@ SettingsDialog::SettingsDialog(const QString& tabName, QWidget *parent) : QDialo
 
     SettingsManager &sm = SettingsManager::instance();
 
-    // ========================================================
-    // Настройки интерфейса и доп. управление
-    // ========================================================
     if (tabName == "Главная") {
+        auto *sLayout = new QHBoxLayout();
         auto *freqSpin = new QSpinBox();
         freqSpin->setRange(1, 1000);
         int oldFreq = sm.get("update_frequency").toInt();
         freqSpin->setValue(oldFreq);
-        form->addRow("UI update frequency (Hz): ", freqSpin);
+        auto *pollSpin = new QSpinBox();
+        pollSpin->setRange(1, 1000);
+        int oldPoll = sm.get("can_bus_poll_timer").toInt();
+        pollSpin->setValue(oldPoll);
+        sLayout->addWidget(new QLabel("UI update frequency: "));
+        sLayout->addWidget(freqSpin);
+        sLayout->addWidget(new QLabel("CAN bus poll timer: "));
+        sLayout->addWidget(pollSpin);
+        form->addRow(sLayout);
 
         auto *pLayout = new QHBoxLayout();
         auto *powerOnBtn = new QPushButton("Turn on VCH-300");
@@ -65,20 +71,19 @@ SettingsDialog::SettingsDialog(const QString& tabName, QWidget *parent) : QDialo
         form->addRow(cLayout);
         
         connect(this, &QDialog::accepted, [=, &sm]() {
-            if (freqSpin->value() != oldFreq) {
+            if ((freqSpin->value() != oldFreq) || (pollSpin->value() != oldPoll)) {
                 sm.set("update_frequency", freqSpin->value());
+                sm.set("can_bus_poll_timer", pollSpin->value());
                 QMessageBox::information(nullptr, "Требуется перезагрузка", 
                     "Новые параметры успешно сохранены в settings.json.\n\n"
                     "Пожалуйста, перезапустите программу, чтобы изменения вступили в силу.");
             }
         });
     }
-    // ========================================================
-    // Настройки вкладки ПИТАНИЕ
-    // ========================================================
+
     else if (tabName == "Питание") {
         auto *idSpin = new QSpinBox();
-        idSpin->setDisplayIntegerBase(16); // Ввод в HEX
+        idSpin->setDisplayIntegerBase(16);
         idSpin->setPrefix("0x");
         idSpin->setRange(0, 255);
         int oldId = sm.get("power_deviceId").toInt();
@@ -95,9 +100,7 @@ SettingsDialog::SettingsDialog(const QString& tabName, QWidget *parent) : QDialo
             }
         });
     } 
-    // ========================================================
-    // Настройки вкладки ОХЛАЖДЕНИЕ
-    // ========================================================
+
     else if (tabName == "Охлаждение") {
         auto *idSpin = new QSpinBox();
         idSpin->setDisplayIntegerBase(16);
@@ -123,9 +126,7 @@ SettingsDialog::SettingsDialog(const QString& tabName, QWidget *parent) : QDialo
             }
         });
     }
-    // ========================================================
-    // Настройки вкладки ИЗМЕРЕНИЯ (Сенсоры)
-    // ========================================================
+
     else if (tabName == "Измерения") {
         auto *idSpin = new QSpinBox();
         idSpin->setDisplayIntegerBase(16);
@@ -169,12 +170,10 @@ SettingsDialog::SettingsDialog(const QString& tabName, QWidget *parent) : QDialo
             }
         });
     }
-    // ========================================================
-    // Настройки вкладки ЛОГИ
-    // ========================================================
+
     else if (tabName == "Логи") {
         auto *logSpin = new QSpinBox();
-        logSpin->setRange(100, 60000); // От 100 мс до 1 минуты
+        logSpin->setRange(100, 60000);
         logSpin->setSuffix(" мс");
         logSpin->setSingleStep(100);
         int oldLog = sm.get("log_intervalMs").toInt();
@@ -194,14 +193,11 @@ SettingsDialog::SettingsDialog(const QString& tabName, QWidget *parent) : QDialo
 
     layout->addLayout(form);
 
-    // Добавляем кнопки ОК и Отмена
     auto *btnBox = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
     connect(btnBox, &QDialogButtonBox::accepted, this, &QDialog::accept);
     connect(btnBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
     layout->addWidget(btnBox);
 
-    // При нажатии "ОК" (после сохранения локальных данных лямбдами выше)
-    // Сохраняем весь JSON и показываем уведомление о перезапуске
     connect(this, &QDialog::accepted, this, []() {
         SettingsManager::instance().save();
     });

@@ -36,7 +36,7 @@ private slots:
     void resetZoom();
 
 private:
-    void loadData(const QString& filePath);
+    void loadAndShowData(const QString& filePath);
     void updateChart();
     void showCustomTooltip(const QPointF& mousePixelPos);
 
@@ -49,7 +49,7 @@ private:
     
     QChart* m_chart;
     QChartView* m_chartView;
-    QLineSeries* m_series;
+    QList<QLineSeries*> m_seriesList;
     QDateTimeAxis* m_axisX;
     QValueAxis* m_axisY;
 };

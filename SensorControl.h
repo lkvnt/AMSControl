@@ -17,12 +17,10 @@ public:
     void requestDataFlow();
     void stopDataFlow();
 
-    // Обработка пакета
     void processADCData(const CAN_PACKET& rcv);
 
     void handleMessage(const CAN_PACKET& pkt);
 
-    // Геттеры
     float getFaradayVoltage() const { return faraday_v; }
     float getHallVoltage() const { return hall_v; }
     float getVacuumVoltage() const { return vacuum_v; }

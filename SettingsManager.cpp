@@ -48,5 +48,6 @@ void SettingsManager::createDefault() {
     m_settings["sensor_chanHall"] = 0x11;
     m_settings["sensor_chanVacuum"] = 0x13;
     m_settings["log_intervalMs"] = 500;
+    m_settings["can_bus_poll_timer"] = 10;
     save();
 }

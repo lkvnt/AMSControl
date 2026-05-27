@@ -8,13 +8,11 @@
 #include <QCursor>
 #include "DataViewerWindow.h"
 
-// Кастомный QChartView для поддержки перетаскивания (Pan) правой кнопкой мыши
 class ChartViewPanZoom : public QChartView {
     bool m_isPanning = false;
     QPoint m_lastMousePos;
 public:
     ChartViewPanZoom(QChart *chart, QWidget *parent = nullptr) : QChartView(chart, parent) {
-        // Включаем зум выделением (левая кнопка)
         setRubberBand(QChartView::RectangleRubberBand);
         setRenderHint(QPainter::Antialiasing);
     }
@@ -49,7 +47,6 @@ protected:
 DataViewerWindow::DataViewerWindow(const QString& filePath, QWidget *parent) 
     : QMainWindow(parent), m_filePath(filePath) {
     
-    // При закрытии окна память автоматически освободится
     setAttribute(Qt::WA_DeleteOnClose);
     setWindowTitle("Просмотр логов данных: " + filePath.split('/').last());
     resize(900, 600);
@@ -57,7 +54,6 @@ DataViewerWindow::DataViewerWindow(const QString& filePath, QWidget *parent)
     auto *centralWidget = new QWidget(this);
     auto *mainLayout = new QVBoxLayout(centralWidget);
 
-    // Верхняя панель управления
     auto *topLayout = new QHBoxLayout();
     m_metricCombo = new QComboBox();
     m_metricCombo->addItems({
@@ -78,22 +74,11 @@ DataViewerWindow::DataViewerWindow(const QString& filePath, QWidget *parent)
     topLayout->addStretch();
     mainLayout->addLayout(topLayout);
 
-    // Настройка графика
     m_chart = new QChart();
     m_chart->legend()->hide();
-    m_series = new QLineSeries();
-    m_chart->addSeries(m_series);
 
-    m_axisX = new QDateTimeAxis();
-    m_axisX->setFormat("HH:mm:ss");
-    m_axisX->setTitleText("Время");
-    m_chart->addAxis(m_axisX, Qt::AlignBottom);
-    m_series->attachAxis(m_axisX);
-
-    m_axisY = new QValueAxis();
-    m_axisY->setTitleText("Значение");
-    m_chart->addAxis(m_axisY, Qt::AlignLeft);
-    m_series->attachAxis(m_axisY);
+    m_axisX = nullptr;
+    m_axisY = nullptr;
 
     m_chartView = new ChartViewPanZoom(m_chart);
 
@@ -103,21 +88,16 @@ DataViewerWindow::DataViewerWindow(const QString& filePath, QWidget *parent)
     mainLayout->addWidget(m_chartView);
     setCentralWidget(centralWidget);
 
-    // Загрузка данных
-    m_series->setUseOpenGL(true);
-    loadData(m_filePath);
+    loadAndShowData(m_filePath);
 }
 
-void DataViewerWindow::loadData(const QString& filePath) {
-    // 1. Блокируем элементы управления и показываем статус
+void DataViewerWindow::loadAndShowData(const QString& filePath) {
     setWindowTitle("Загрузка данных... Пожалуйста, подождите.");
     m_metricCombo->setEnabled(false);
     m_resetZoomBtn->setEnabled(false);
 
-    // 2. QPointer безопасно обнулится, если окно будет закрыто (предотвратит краш)
     QPointer<DataViewerWindow> safeThis = this;
 
-    // 3. Создаем и запускаем рабочий поток
     QThread *thread = QThread::create([safeThis, filePath]() {
         QVector<TelemetryRecord> parsedRecords;
         QFile file(filePath);
@@ -125,7 +105,6 @@ void DataViewerWindow::loadData(const QString& filePath) {
         if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
             QTextStream in(&file);
             while (!in.atEnd()) {
-                // Если пользователь закрыл окно во время чтения — экстренно прерываем цикл!
                 if (!safeThis) break; 
 
                 QString line = in.readLine();
@@ -150,7 +129,6 @@ void DataViewerWindow::loadData(const QString& filePath) {
             }
         }
 
-        // 4. Возвращаемся в главный поток (через invoke и QueuedConnection) для перерисовки UI (если окно еще живо)
         if (safeThis) {
             QMetaObject::invokeMethod(safeThis, [safeThis, parsedRecords, filePath]() {
                 if (safeThis) {
@@ -164,7 +142,6 @@ void DataViewerWindow::loadData(const QString& filePath) {
         }
     });
 
-    // 5. Поток сам удалит свой объект из памяти после завершения
     connect(thread, &QThread::finished, thread, &QObject::deleteLater);
     thread->start();
 }
@@ -172,17 +149,62 @@ void DataViewerWindow::loadData(const QString& filePath) {
 void DataViewerWindow::updateChart() {
     if (m_dataRecords.isEmpty()) return;
 
+    for (QLineSeries* s : std::as_const(m_seriesList)) {
+        m_chart->removeSeries(s);
+        delete s;
+    }
+    m_seriesList.clear();
+
+    if (m_axisX) {
+        m_chart->removeAxis(m_axisX);
+        delete m_axisX;
+        m_axisX = nullptr;
+    }
+    if (m_axisY) {
+        m_chart->removeAxis(m_axisY);
+        delete m_axisY;
+        m_axisY = nullptr;
+    }
+
+    m_axisX = new QDateTimeAxis();
+    m_axisX->setFormat("HH:mm:ss");
+    m_axisX->setTitleText("Время");
+    m_chart->addAxis(m_axisX, Qt::AlignBottom);
+
+    m_axisY = new QValueAxis();
+    m_axisY->setTitleText("Значение");
+    m_chart->addAxis(m_axisY, Qt::AlignLeft);
+
     int metricIndex = m_metricCombo->currentIndex();
     
     qreal minY = std::numeric_limits<qreal>::max();
     qreal maxY = std::numeric_limits<qreal>::lowest();
 
-    // 1. Создаем временный массив для быстрой вставки
-    QVector<QPointF> newPoints;
-    newPoints.reserve(m_dataRecords.size());
+    m_currentPoints.clear();
+    m_currentPoints.reserve(m_dataRecords.size());
 
-    for (const TelemetryRecord& rec : qAsConst(m_dataRecords)) {
-        // qint64 timeMs = static_cast<qint64>(obj["time"].toDouble());
+    QVector<QPointF> currentSegment;
+    qint64 lastTime = -1;
+    QColor seriesColor("#2196F3");
+
+    auto createSegmentHelper = [&](const QVector<QPointF>& segmentData) {
+        if (segmentData.isEmpty()) return;
+
+        QLineSeries* series = new QLineSeries();
+        
+        // Порядок важен
+        m_chart->addSeries(series);
+        series->setUseOpenGL(true);
+        series->setColor(seriesColor);
+        series->replace(segmentData);
+        
+        series->attachAxis(m_axisX);
+        series->attachAxis(m_axisY);
+        
+        m_seriesList.append(series);
+    };
+
+    for (const TelemetryRecord& rec : std::as_const(m_dataRecords)) {
         qreal y = 0.0;
 
         switch (metricIndex) {
@@ -194,18 +216,23 @@ void DataViewerWindow::updateChart() {
             case 5: y = rec.pressure; break;
         }
 
-        newPoints.append(QPointF(rec.time, y));
         if (y < minY) minY = y;
         if (y > maxY) maxY = y;
+
+        QPointF pt(rec.time, y);
+        m_currentPoints.append(pt);
+
+        if (lastTime != -1 && (rec.time - lastTime) > 10000) {
+            createSegmentHelper(currentSegment);
+            currentSegment.clear();
+        }
+
+        currentSegment.append(pt);
+        lastTime = rec.time;
     }
 
-    // 2. Сохраняем в кэш для тултипов
-    m_currentPoints = newPoints;
+    createSegmentHelper(currentSegment);
 
-    // 3. МГНОВЕННО заменяем все точки на графике разом
-    m_series->replace(newPoints);
-
-    // Масштабируем оси
     m_axisX->setRange(QDateTime::fromMSecsSinceEpoch(m_dataRecords.first().time), 
                       QDateTime::fromMSecsSinceEpoch(m_dataRecords.last().time));
     
@@ -221,13 +248,12 @@ void DataViewerWindow::onMetricChanged(int index) {
 
 void DataViewerWindow::resetZoom() {
     m_chart->zoomReset();
-    updateChart(); // Возвращаем к изначальным границам
+    updateChart();
 }
 
 bool DataViewerWindow::eventFilter(QObject *watched, QEvent *event) {
     if (watched == m_chartView->viewport() && event->type() == QEvent::MouseMove) {
         QMouseEvent *mouseEvent = static_cast<QMouseEvent*>(event);
-        // Передаем координаты мыши в наш алгоритм поиска
         showCustomTooltip(mouseEvent->pos());
     }
     return QMainWindow::eventFilter(watched, event);
@@ -236,11 +262,11 @@ bool DataViewerWindow::eventFilter(QObject *watched, QEvent *event) {
 void DataViewerWindow::showCustomTooltip(const QPointF& mousePixelPos) {
     if (m_currentPoints.isEmpty()) return;
 
-    // 1. Переводим пиксели окна в значения графика (время)
-    QPointF chartPos = m_chart->mapToValue(mousePixelPos);
+    QAbstractSeries* firstSeries = m_seriesList.isEmpty() ? nullptr : m_seriesList.first();
+
+    QPointF chartPos = m_chart->mapToValue(mousePixelPos, firstSeries);
     qreal targetX = chartPos.x();
 
-    // 2. Бинарный поиск (очень быстрый поиск в отсортированном по времени массиве)
     auto it = std::lower_bound(m_currentPoints.begin(), m_currentPoints.end(), targetX,
                                [](const QPointF& p, qreal x) { return p.x() < x; });
 
@@ -250,23 +276,20 @@ void DataViewerWindow::showCustomTooltip(const QPointF& mousePixelPos) {
     } else if (it == m_currentPoints.begin()) {
         closestPoint = m_currentPoints.first();
     } else {
-        // Сравниваем две соседние точки, чтобы выбрать самую близкую к курсору
         QPointF p1 = *(it - 1);
         QPointF p2 = *it;
         closestPoint = (std::abs(p1.x() - targetX) < std::abs(p2.x() - targetX)) ? p1 : p2;
     }
 
-    // 3. Защита: показываем тултип, только если мышь находится рядом с линией графика
-    // Вычисляем, где на экране (в пикселях) должна быть наша найденная точка
-    QPointF closestPixelPos = m_chart->mapToPosition(closestPoint);
+    QPointF closestPixelPos = m_chart->mapToPosition(closestPoint, firstSeries);
     
-    // Если курсор мыши слишком высоко или низко от реальной линии (погрешность 40 пикселей)
-    if (std::abs(closestPixelPos.y() - mousePixelPos.y()) > 40) {
-        QToolTip::hideText(); // Прячем тултип (мышь "в небе" или "под землей")
+    if ((std::abs(closestPixelPos.y() - mousePixelPos.y()) > 30) ||
+        (std::abs(closestPixelPos.x() - mousePixelPos.x()) > 30))
+    {
+        QToolTip::hideText();
         return;
     }
 
-    // 4. Показываем всплывающую подсказку
     QDateTime dt = QDateTime::fromMSecsSinceEpoch(static_cast<qint64>(closestPoint.x()));
     QString text = QString("Время: %1\nЗначение: %2")
                    .arg(dt.toString("HH:mm:ss.zzz"))

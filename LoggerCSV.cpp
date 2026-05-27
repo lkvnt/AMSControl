@@ -19,16 +19,13 @@ void LoggerCSV::log(const QString& dirPath, const QString& fileName, const QVari
     if (file.open(QIODevice::Append | QIODevice::Text)) {
         QTextStream out(&file);
 
-        // Если файл только что создан, пишем строку заголовков
         if (isNew && !m_headers.isEmpty()) {
             out << m_headers.join(",") << "\n";
         }
 
-        // Извлекаем карту данных из QVariant
         QVariantMap dataMap = data.toMap();
         QStringList row;
 
-        // Собираем строку строго в порядке заголовков
         for (const QString& header : m_headers) {
             row.append(dataMap.value(header, "").toString());
         }

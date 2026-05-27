@@ -5,8 +5,6 @@
 #include <QTimer>
 #include <vector>
 #include <cstdint>
-// #include <QJsonObject>
-// #include <QJsonDocument>
 
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX

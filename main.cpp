@@ -6,13 +6,11 @@
 
 int main(int argc, char *argv[])
 {
-    // Настройка атрибутов для корректного отображения графиков на High DPI мониторах
     QApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
     QApplication::setAttribute(Qt::AA_UseHighDpiPixmaps);
 
     QApplication a(argc, argv);
 
-    // Установка имени приложения (полезно для настроек и заголовков)
     a.setApplicationName("Accelerator Mass-Spectrometer Control");
     a.setApplicationVersion("1.0.0");
 

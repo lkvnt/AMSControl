@@ -10,7 +10,6 @@ class Logger {
 public:
     virtual ~Logger() = default;
     
-    // Менеджер передает только директорию, имя файла и сырые данные
     virtual void log(const QString& dirPath, const QString& fileName, const QVariant& data) = 0;
 };
 
