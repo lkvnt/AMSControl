@@ -11,6 +11,7 @@
 #include <QtCharts/QChartView>
 #include <QtCharts/QLineSeries>
 #include <QListWidget>
+#include <QElapsedTimer>
 
 class SystemManager;
 
@@ -38,6 +39,7 @@ private:
     
     SystemManager *m_manager;
     QTimer *updateTimer;
+    QElapsedTimer m_elapsedTimer;
 
     QLabel *tempLabel;
     QLabel *flowLabel;
