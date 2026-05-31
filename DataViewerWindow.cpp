@@ -104,6 +104,14 @@ void DataViewerWindow::loadAndShowData(const QString& filePath) {
         
         if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
             QTextStream in(&file);
+
+            auto parseOptional = [](const QString& tok) -> std::optional<double> {
+                if (tok.trimmed().isEmpty()) return std::nullopt;
+                bool ok;
+                double val = tok.toDouble(&ok);
+                return ok ? std::optional<double>(val) : std::nullopt;
+            };
+
             while (!in.atEnd()) {
                 if (!safeThis) break; 
 
@@ -115,17 +123,17 @@ void DataViewerWindow::loadAndShowData(const QString& filePath) {
                 tokens[0].toLongLong(&isNumber);
                 if (!isNumber) continue;
 
-                if (tokens.size() >= 7) {
-                    TelemetryRecord rec;
-                    rec.time       = tokens[0].toLongLong();
-                    rec.current    = tokens[1].toDouble();
-                    rec.temp       = tokens[2].toDouble();
-                    rec.flow       = tokens[3].toDouble();
-                    rec.hall       = tokens[4].toDouble();
-                    rec.ioncurrent = tokens[5].toDouble();
-                    rec.pressure   = tokens[6].toDouble();
-                    parsedRecords.append(rec);
-                }
+                TelemetryRecord rec;
+                rec.time       = tokens[0].toLongLong();
+
+                rec.current    = tokens.size() > 1 ? parseOptional(tokens[1]) : std::nullopt;
+                rec.temp       = tokens.size() > 2 ? parseOptional(tokens[2]) : std::nullopt;
+                rec.flow       = tokens.size() > 3 ? parseOptional(tokens[3]) : std::nullopt;
+                rec.hall       = tokens.size() > 4 ? parseOptional(tokens[4]) : std::nullopt;
+                rec.ioncurrent = tokens.size() > 5 ? parseOptional(tokens[5]) : std::nullopt;
+                rec.pressure   = tokens.size() > 6 ? parseOptional(tokens[6]) : std::nullopt;
+
+                parsedRecords.append(rec);
             }
         }
 
@@ -205,16 +213,25 @@ void DataViewerWindow::updateChart() {
     };
 
     for (const TelemetryRecord& rec : std::as_const(m_dataRecords)) {
-        qreal y = 0.0;
+        std::optional<double> optY;
 
         switch (metricIndex) {
-            case 0: y = rec.current; break;
-            case 1: y = rec.temp; break;
-            case 2: y = rec.flow; break;
-            case 3: y = rec.hall; break;
-            case 4: y = rec.ioncurrent; break;
-            case 5: y = rec.pressure; break;
+            case 0: optY = rec.current; break;
+            case 1: optY = rec.temp; break;
+            case 2: optY = rec.flow; break;
+            case 3: optY = rec.hall; break;
+            case 4: optY = rec.ioncurrent; break;
+            case 5: optY = rec.pressure; break;
         }
+
+        if (!optY.has_value()) {
+            createSegmentHelper(currentSegment);
+            currentSegment.clear();
+            lastTime = rec.time;
+            continue;
+        }
+
+        qreal y = optY.value();
 
         if (y < minY) minY = y;
         if (y > maxY) maxY = y;
@@ -232,6 +249,11 @@ void DataViewerWindow::updateChart() {
     }
 
     createSegmentHelper(currentSegment);
+
+    if (minY > maxY) {
+        minY = 0.0;
+        maxY = 1.0;
+    }
 
     m_axisX->setRange(QDateTime::fromMSecsSinceEpoch(m_dataRecords.first().time), 
                       QDateTime::fromMSecsSinceEpoch(m_dataRecords.last().time));

@@ -25,7 +25,7 @@ public:
     float getHallVoltage() const { return hall_v; }
     float getVacuumVoltage() const { return vacuum_v; }
 
-    static float getPressFromVolt(float volt);
+    static std::optional<double> getPressFromVolt(float volt);
 
     uint32_t getTargetId() const;
     bool isMyReply(uint32_t can_id) const;

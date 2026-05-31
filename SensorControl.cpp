@@ -91,12 +91,12 @@ void SensorController::processADCData(const CAN_PACKET& rcv) {
     }
 }
 
-float SensorController::getPressFromVolt(float volt) {
+std::optional<double> SensorController::getPressFromVolt(float volt) {
     if (volt > 1e-3 && volt < 6.7835f) return exp((volt - 11.2128f) / 0.7124f);
     else if (volt >= 6.7835f && volt < 8.0272f) return exp((volt - 10.9212f) / 0.6655f);
     else if (volt >= 8.0272f && volt < 8.9702f) return exp((volt - 9.9684f) / 0.4464f);
     else if (volt >= 8.9702f && volt <= 9.5f) return exp((volt - 9.5545f) / 0.2613f);
-    else return -1;
+    else return std::nullopt;
 }
 
 void SensorController::handleMessage(const CAN_PACKET& pkt) {

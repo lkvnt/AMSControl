@@ -103,7 +103,7 @@ void SystemManager::continueStartSystem(int step) {
                 return; 
             }
 
-            if (cooling.getTemperature() > 70.0f) {
+            if (getTemp() > 70.0f) {
                 emit logMessage("SystemManager: Warning! Temperature too high! Startup process is stopped");
                 stopSystem();
             } else {
@@ -272,7 +272,7 @@ void SystemManager::update() {
 
     power.requestRegisters(); 
 
-    checkInterlocks(cooling.getFlowRate(), cooling.getTemperature(), power.getStatusFlags());
+    checkInterlocks(getFlow(), getTemp(), getStatusFlags());
 }
 
 void SystemManager::checkInterlocks(float flow, float temp, uint8_t power_status) {
@@ -316,13 +316,17 @@ void SystemManager::onDataLogTimeout() {
     QString fileName = "Data-" + QDateTime::currentDateTime().toString("dd-MM-yyyy");
     
     QVariantMap data;
+    auto pressure = sensors.getPressFromVolt(getVacuum());
     data["timestamp"]   = QDateTime::currentMSecsSinceEpoch();
     data["current"]     = getCurrent();
     data["temp"]        = getTemp();
     data["flow"]        = getFlow();
     data["hall"]        = getHall();
     data["ioncurrent"]  = getFaraday();
-    data["pressure"]    = sensors.getPressFromVolt(getVacuum()); 
+    if (pressure.has_value()) {
+        data["pressure"] = pressure.value();
+    }
+     
     if (m_telemetryLogger) {
         QThreadPool::globalInstance()->start(new LogTask(m_telemetryLogger.get(), "Logs", fileName, data));
     }

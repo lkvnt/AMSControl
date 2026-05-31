@@ -23,7 +23,7 @@ SettingsDialog::SettingsDialog(const QString& tabName, QWidget *parent) : QDialo
     if (tabName == "Главная") {
         auto *sLayout = new QHBoxLayout();
         auto *freqSpin = new QSpinBox();
-        freqSpin->setRange(1, 1000);
+        freqSpin->setRange(1, 100);
         int oldFreq = sm.get("update_frequency").toInt();
         freqSpin->setValue(oldFreq);
         auto *pollSpin = new QSpinBox();

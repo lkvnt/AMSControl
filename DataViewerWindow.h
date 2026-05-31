@@ -14,12 +14,12 @@
 
 struct TelemetryRecord {
     qint64 time;
-    double current;
-    double temp;
-    double flow;
-    double hall;
-    double ioncurrent;
-    double pressure;
+    std::optional<double> current;
+    std::optional<double> temp;
+    std::optional<double> flow;
+    std::optional<double> hall;
+    std::optional<double> ioncurrent;
+    std::optional<double> pressure;
 };
 
 class DataViewerWindow : public QMainWindow {

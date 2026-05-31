@@ -19,6 +19,8 @@ MainWindow::MainWindow(SystemManager *manager, QWidget *parent)
     setupUI();
     resize(900, 700);
 
+    m_elapsedTimer.start();
+
     connect(m_manager, &SystemManager::logMessage, this, &MainWindow::onLogMessage);
 
     connect(m_manager, &SystemManager::busyStateChanged, this, &MainWindow::onBusyStateChanged);
@@ -418,9 +420,10 @@ void MainWindow::onTimerTick() {
     currentValLabel->setText(QString("Текущий ток: %1 А").arg(cur, 0, 'f', 2));
     adcVoltLabel->setText(QString("Напряжение АЦП: %1 В").arg(volt, 0, 'f', 4));
 
-    currentSeries->append(time_axis, cur);
-    if (currentSeries->count() > 10 * updateFreq) currentSeries->remove(0); 
-    currentChart->axes(Qt::Horizontal).first()->setRange(time_axis - 10, time_axis);
+    float real_time_axis = m_elapsedTimer.elapsed() / 1000.0f;
+    currentSeries->append(real_time_axis, cur);
+    if (currentSeries->count() > 11 * updateFreq) currentSeries->remove(0); 
+    currentChart->axes(Qt::Horizontal).first()->setRange(real_time_axis - 10.0f, real_time_axis);
     time_axis += 1.0 / updateFreq;
     
     updateLamps(m_manager->getStatusFlags());
@@ -433,8 +436,9 @@ void MainWindow::onTimerTick() {
     vacuumVoltLabel->setText(QString("Вакуум (Вольт): \t %1 В").arg(vacuum_v, 0, 'f', 4));
 
     vacuum_v = std::max(0.0f, std::min(10.0f, vacuum_v));
-    double pressure = SensorController::getPressFromVolt(vacuum_v);
-    if (pressure != -1) {
+    auto optPressure = SensorController::getPressFromVolt(vacuum_v);
+    if (optPressure.has_value()) {
+        double pressure = optPressure.value();
         int exponent = std::floor(std::log10(pressure));
         double mantissa = pressure / std::pow(10.0, exponent);
         vacuumPressLabel->setText(QString("Вакуум (Давление): %1 * 10^%2 Па")
