@@ -20,13 +20,16 @@ SystemManager::SystemManager(std::unique_ptr<Logger> eventLogger,
     connect(&cooling, &CoolingController::logMessage, this, &SystemManager::logMessage);
     connect(&sensors, &SensorController::logMessage, this, &SystemManager::logMessage);
 
-    connect(&canBus, &CanBusManager::packetReceived, this, &SystemManager::handleIncomingPacket);
+    connect(this, &SystemManager::stopSystemSignal, &sensors, &SensorController::onSystemStop);
+    connect(this, &SystemManager::stopSystemSignal, &power, &PowerSupplyController::onSystemStop);
+    connect(this, &SystemManager::stopSystemSignal, &cooling, &CoolingController::onSystemStop);
 
     connect(&power, &PowerSupplyController::deviceBusyStateChanged, this, [this]() {
         emit busyStateChanged(this->isBusy());
     });
 
     connect(this, &SystemManager::logMessage, this, &SystemManager::onLogMessageReceived);
+
     dataLogTimer = new QTimer(this); // Старт таймера будет при включении системы
     connect(dataLogTimer, &QTimer::timeout, this, &SystemManager::onDataLogTimeout);
 
@@ -75,17 +78,18 @@ void SystemManager::startSystem() {
     cooling.requestConnection();
 
     QTimer::singleShot(500, this, [this]() {
-        if (!cdacResponded) {
+        if (!power.isResponded()) {
             emit logMessage("SystemManager: Warning! No response from CDAC20. Startup process is stopped");
             stopSystem();
-        } else if (!cacResponded) {
+        } else if (!sensors.isResponded()) {
             emit logMessage("SystemManager: Warning! No response from CAC208. Startup process is stopped");
             stopSystem();
-        } else if (!arduinoResponded) {
+        } else if (!cooling.isResponded()) {
             emit logMessage("SystemManager: Warning! No response from Arduino. Startup process is stopped");
             stopSystem();
         } else {
             startup_step = 2;
+            emit logMessage("SystemManager: All blocks responded.");
             continueStartSystem(startup_step);
         }
     });
@@ -107,10 +111,9 @@ void SystemManager::continueStartSystem(int step) {
                 emit logMessage("SystemManager: Warning! Temperature too high! Startup process is stopped");
                 stopSystem();
             } else {
-                cooling.setPumpState(true); // Ардуино отправит сообщение о наличии/отсутствии потока
-                cooling.setCoolerState(true);
+                cooling.setState(true); // Ардуино отправит сообщение о наличии/отсутствии потока
                 QTimer::singleShot(1000, this, [this]() {
-                    if (!cooling.getPumpState()) { // Если не поднялся поток то будет false
+                    if (!cooling.getState()) { // Если не поднялся поток то будет false
                         emit logMessage("SystemManager: Warning! Pump error! Startup process is stopped");
                         stopSystem();
                     } else {
@@ -150,10 +153,6 @@ void SystemManager::continueStartSystem(int step) {
                     uint8_t status = power.getStatusFlags();
                     if (status & 0x01) { 
                         emit logMessage("SystemManager: System started successfully.");
-                        qint64 now = QDateTime::currentMSecsSinceEpoch();
-                        lastPowerMsgTime = now;
-                        lastSensorMsgTime = now;
-                        lastCoolMsgTime = now;
 
                         is_running = true;
                         dataLogTimer->start(SettingsManager::instance().get("log_intervalMs").toInt());
@@ -195,59 +194,12 @@ void SystemManager::stopSystem() {
     if (!is_running && !canBus.isOpen()) return;
     
     emit logMessage("SystemManager: Shutting down...");
-    power.setCurrent(0);
-    power.setPowerState(false);
-    cooling.setPumpState(false);
-    cooling.setCoolerState(false);
-    
-    cdacResponded = false;
-    cacResponded = false;
-    arduinoResponded = false;
+
+    emit stopSystemSignal();
+
     is_running = false;
     emit busyStateChanged(false);
     emit logMessage("SystemManager: System is off.");
-}
-
-void SystemManager::handleIncomingPacket(const CAN_PACKET& pkt) {
-    qint64 currentTime = QDateTime::currentMSecsSinceEpoch();
-
-    if (power.isMyReply(pkt.CAN_ID)) {
-        lastPowerMsgTime = currentTime;
-        uint8_t cmd = pkt.data[0];
-
-        if (startup_step == 1 && cmd == 0xFF) {
-            emit logMessage("SystemManager: CDAC20 responded.");
-            cdacResponded = true;
-        } else {
-            power.handleMessage(pkt);
-        }
-    } else if (sensors.isMyReply(pkt.CAN_ID)) {
-        lastSensorMsgTime = currentTime;
-        if (startup_step == 1 && pkt.data[0] == 0xFF) {
-            emit logMessage("SystemManager: CAC208 responded.");
-            cacResponded = true;
-        }
-        else {
-            sensors.handleMessage(pkt);
-        }
-    } else if (cooling.isMyReply(pkt.CAN_ID)) {
-        if (startup_step == 1 && pkt.data[0] == 0xFF) {
-            emit logMessage("SystemManager: Arduino responded.");
-            arduinoResponded = true;
-        }
-        lastCoolMsgTime = currentTime;
-        cooling.handleMessage(pkt);
-    }
-    else handleUnexpectedPacket(pkt);
-}
-
-void SystemManager::handleUnexpectedPacket(const CAN_PACKET& pkt) {
-    QString hexData;
-    uint64_t data = 0;
-    for (int i = 0; i < pkt.len; ++i) {
-        hexData += QString("%1 ").arg(pkt.data[i], 2, 16, QChar('0')).toUpper();
-    }
-    emit logMessage(QString("SystemManager: Received unexpected data. ID: 0x%1 Data(HEX): %2").arg(QString::number(pkt.CAN_ID, 16).toUpper(), hexData.trimmed()));
 }
 
 void SystemManager::update() {
@@ -256,15 +208,15 @@ void SystemManager::update() {
     qint64 now = QDateTime::currentMSecsSinceEpoch();
 
     if (is_running) {
-        if ((now - lastPowerMsgTime) > 1000) {
+        if ((now - power.getLastMsgTime()) > 1000) {
             emit logMessage("SystemManager: ERROR! Lost connection with CDAC20 (power), timeout!");
             stopSystem();
         }
-        if ((now - lastSensorMsgTime) > 1000) {
+        if ((now - sensors.getLastMsgTime()) > 1000) {
             emit logMessage("SystemManager: ERROR! Lost connection with CAC208 (sensors), timeout!");
             stopSystem();
         }
-        if ((now - lastCoolMsgTime) > 1000) {
+        if ((now - cooling.getLastMsgTime()) > 1000) {
             emit logMessage("SystemManager: ERROR! Lost connection with Arduino (cooling), Timeout!");
             stopSystem();
         }

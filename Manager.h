@@ -33,8 +33,7 @@ public:
     float getHall() const { return sensors.getHallVoltage(); }
     float getVacuum() const { return sensors.getVacuumVoltage(); }
 
-    bool getPumpState() const { return cooling.getPumpState(); }
-    bool getCoolState() const { return cooling.getCoolState(); }
+    bool getCoolState() const { return cooling.getState(); }
     bool isOk() const { return is_running; }
     bool isBusy() const { return power.isDeviceBusy() || startup_step > 0; }
     uint8_t getStatusFlags() const { return power.getStatusFlags(); }
@@ -43,16 +42,15 @@ public:
     void manualPowerOff() { power.setPowerState(false); power.setCurrent(0); }
     void manualResetProt() { power.resetProtection(); }
     void manualSetCurrent(float amperes) { setCurrent(amperes, true); }
-    void manualCoolingOn() { cooling.setPumpState(true); cooling.setCoolerState(true); cooling.requestDataFlow();}
-    void manualCoolingOff() { cooling.setPumpState(false); cooling.setCoolerState(false); }
+    void manualCoolingOn() { cooling.setState(true); cooling.requestDataFlow();}
+    void manualCoolingOff() { cooling.setState(false); }
 
 signals:
     void logMessage(const QString& msg);
     void busyStateChanged(bool isBusy);
+    void stopSystemSignal();
 
 private slots:
-    void handleIncomingPacket(const CAN_PACKET& pkt);
-
     void onLogMessageReceived(const QString& msg);
     void onDataLogTimeout();
 
@@ -71,19 +69,9 @@ private:
     float updateFreq;
     void checkInterlocks(float flow, float temp, uint8_t power_status); // TODO: сделать в настройках выбор проверять или нет
 
-    void handleUnexpectedPacket(const CAN_PACKET& pkt);
-
     QTimer *dataLogTimer;
     std::unique_ptr<Logger> m_eventLogger;
     std::unique_ptr<Logger> m_telemetryLogger;
-
-    bool cdacResponded = false;
-    bool cacResponded = false;
-    bool arduinoResponded = false;
-
-    qint64 lastPowerMsgTime = 0;
-    qint64 lastSensorMsgTime = 0;
-    qint64 lastCoolMsgTime = 0;
 };
 
 #endif // SYSTEM_MANAGER_H
