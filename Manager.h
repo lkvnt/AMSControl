@@ -39,8 +39,8 @@ public:
     bool isBusy() const { return power.isDeviceBusy() || startup_step > 0; }
     uint8_t getStatusFlags() const { return power.getStatusFlags(); }
 
-    void manualPowerOn() { power.setPowerState(true); }
-    void manualPowerOff() { power.setPowerState(false); }
+    void manualPowerOn() { power.setPowerState(true); power.requestDataFlow(); }
+    void manualPowerOff() { power.setPowerState(false); power.setCurrent(0); }
     void manualResetProt() { power.resetProtection(); }
     void manualSetCurrent(float amperes) { setCurrent(amperes, true); }
     void manualCoolingOn() { cooling.setPumpState(true); cooling.setCoolerState(true); cooling.requestDataFlow();}

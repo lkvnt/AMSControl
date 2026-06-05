@@ -2,7 +2,7 @@
 #include "SensorControl.h"
 #include "SettingsManager.h"
 
-#define PRIORITY_SEND 0b101
+#define PRIORITY_SEND 0b110
 #define PRIORITY_RECEIVE 0b111
 
 enum Command {
