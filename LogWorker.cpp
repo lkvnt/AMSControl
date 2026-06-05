@@ -2,7 +2,7 @@
 
 LogWorker::LogWorker(std::unique_ptr<Logger> eventLogger, 
               std::unique_ptr<Logger> telemetryLogger, 
-              QObject* parent = nullptr)
+              QObject* parent)
         : QObject(parent), 
           m_eventLogger(std::move(eventLogger)), 
           m_telemetryLogger(std::move(telemetryLogger)) {}
