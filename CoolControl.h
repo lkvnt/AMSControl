@@ -13,28 +13,34 @@ public:
 
     void setCanInterface(CanBusManager* can_interface);
 
-    void setPumpState(bool start);
-    void setCoolerState(bool start);
+    void setState(bool start);
 
     float getTemperature() const;
     float getFlowRate() const;
-    bool getPumpState() const { return pumpState; }
-    bool getCoolState() const { return coolState; }
+    bool getState() const { return state; }
+    bool isResponded() const { return arduinoResponded; }
+    qint64 getLastMsgTime() const { return lastMsgTime; }
 
     bool isMyReply(uint32_t can_id) const;
-    void handleMessage(const CAN_PACKET& pkt);
     uint32_t getTargetId() const;
 
     void requestConnection();
     void requestDataFlow();
     void stopDataFlow();
 
+private slots:
+    void handleMessage(const CAN_PACKET& pkt);
+
+public slots:
+    void onSystemStop();
+
 private:
     CanBusManager* can;
-    bool pumpState;
-    bool coolState;
+    bool state;
     uint16_t waterFlow;
     uint8_t dev_id;
+    bool arduinoResponded = false;
+    qint64 lastMsgTime = 0;
 
 signals:
     void logMessage(const QString& msg);
