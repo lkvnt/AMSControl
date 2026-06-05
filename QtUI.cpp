@@ -409,7 +409,7 @@ void MainWindow::onTimerTick() {
     auto setCol = [](QLabel* l, bool cond, const char* cOn, const char* cOff) {
         l->setStyleSheet(QString("border-radius:5px; min-width:90px; min-height:25px; font-weight: bold; font-size:10px; color:white; background-color: %1;").arg(cond ? cOn : cOff));
     };
-    setCol(pumpLed, m_manager->getPumpState(), "lightgreen", "gray");
+    setCol(pumpLed, m_manager->getCoolState(), "lightgreen", "gray");
     setCol(radiatorLed, m_manager->getCoolState(), "lightgreen", "gray");
     tempLabel->setText(QString("Температура: %1 °C").arg(m_manager->getTemp()));
     flowLabel->setText(QString("Поток: %1 л/мин").arg(m_manager->getFlow()));
