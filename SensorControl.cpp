@@ -1,6 +1,8 @@
 #include <cmath>
+#include <QDateTime>
 #include "SensorControl.h"
 #include "SettingsManager.h"
+#include "CanBusManager.h"
 
 #define PRIORITY_SEND 0b110
 #define PRIORITY_RECEIVE 0b111
@@ -21,14 +23,13 @@ void SensorController::setCanInterface(CanBusManager* can_interface) {
         emit logMessage("SensorControl: CAN is already connected.");
     }
     can = can_interface;
+    connect(can, &CanBusManager::packetReceived, this, &SensorController::handleMessage);
     emit logMessage("SensorControl: CAN interface connected.");
 }
 
 void SensorController::requestDataFlow() {
-    if (!can) {
-        emit logMessage("SensorControl: Warning! CAN is not initialized.");
-        return;
-    }
+    if (!can) return;
+    
     SettingsManager &sm = SettingsManager::instance();
     uint8_t chHall = sm.get("sensor_chanHall").toInt();
     uint8_t chFaraday = sm.get("sensor_chanFaraday").toInt();
@@ -100,15 +101,17 @@ std::optional<double> SensorController::getPressFromVolt(float volt) {
 }
 
 void SensorController::handleMessage(const CAN_PACKET& pkt) {
-    uint8_t cmd = pkt.data[0];
-    if (cmd == Command::START_MEASURE) {
-        processADCData(pkt);
-    } else {
-        QString hexData;
-        uint64_t data = 0;
-        for (int i = 0; i < pkt.len; ++i) {
-            hexData += QString("%1 ").arg(pkt.data[i], 2, 16, QChar('0')).toUpper();
-        }
-        emit logMessage(QString("SystemManager: Received unexpected data. ID: 0x%1 Data(HEX): %2").arg(QString::number(pkt.CAN_ID, 16).toUpper(), hexData.trimmed()));
+    if (isMyReply(pkt.CAN_ID)) {
+        lastMsgTime = QDateTime::currentMSecsSinceEpoch();
+        uint8_t cmd = pkt.data[0];
+        if (cmd == Command::START_MEASURE) {
+            processADCData(pkt);
+        } else if (cmd == Command::CHECK_CONNECT) {
+            cacResponded = true;
+        } else can->handleUnknownPacket(pkt, "SensorControl");
     }
+}
+
+void SensorController::onSystemStop() {
+    cacResponded = false;
 }

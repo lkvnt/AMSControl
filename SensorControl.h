@@ -19,11 +19,11 @@ public:
 
     void processADCData(const CAN_PACKET& rcv);
 
-    void handleMessage(const CAN_PACKET& pkt);
-
     float getFaradayVoltage() const { return faraday_v; }
     float getHallVoltage() const { return hall_v; }
     float getVacuumVoltage() const { return vacuum_v; }
+    bool isResponded() const { return cacResponded; }
+    qint64 getLastMsgTime() const { return lastMsgTime; }
 
     static std::optional<double> getPressFromVolt(float volt);
 
@@ -33,6 +33,12 @@ public:
 signals:
     void logMessage(const QString& msg);
 
+private slots:
+    void handleMessage(const CAN_PACKET& pkt);
+
+public slots:
+    void onSystemStop();
+
 private:
     CanBusManager* can;
     uint8_t dev_id;
@@ -40,6 +46,9 @@ private:
     float faraday_v;
     float hall_v;
     float vacuum_v;
+
+    bool cacResponded = false;
+    qint64 lastMsgTime = 0;
 };
 
 #endif // SENSORCONTROL_H

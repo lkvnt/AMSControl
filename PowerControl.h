@@ -26,11 +26,11 @@ public:
     void processADCData(const CAN_PACKET& rcv);
     void processRegisterData(const CAN_PACKET& rcv);
 
-    void handleMessage(const CAN_PACKET& pkt);
-
     float getCurrent() const { return current_actual; }
     float getAdcVoltage() const { return voltage_actual; }
     uint8_t getStatusFlags() const { return status_flags; }
+    bool isResponded() const { return cdacResponded; }
+    qint64 getLastMsgTime() const { return lastMsgTime; }
 
     uint32_t getTargetId() const;
     bool isMyReply(uint32_t can_id) const;
@@ -42,6 +42,12 @@ signals:
     void logMessage(const QString& msg);
     void deviceBusyStateChanged(bool isBusy);
 
+private slots:
+    void handleMessage(const CAN_PACKET& pkt);
+
+public slots:
+    void onSystemStop();
+
 private:
     CanBusManager* can;
     uint8_t dev_id;
@@ -49,6 +55,8 @@ private:
     float voltage_actual;
     uint8_t status_flags;
     bool isBusy;
+    bool cdacResponded = false;
+    qint64 lastMsgTime = 0;
 };
 
 #endif

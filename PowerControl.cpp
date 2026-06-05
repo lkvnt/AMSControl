@@ -1,5 +1,7 @@
+#include <QDateTime>
 #include "PowerControl.h"
 #include "SettingsManager.h"
+#include "CanBusManager.h"
 
 #define PRIORITY_SEND 0b110
 #define PRIORITY_RECEIVE 0b111
@@ -24,6 +26,7 @@ void PowerSupplyController::setCanInterface(CanBusManager* can_interface) {
         return;
     }
     can = can_interface;
+    connect(can, &CanBusManager::packetReceived, this, &PowerSupplyController::handleMessage);
     emit logMessage("Power Control: CAN interface connected.");
 }
 
@@ -155,10 +158,7 @@ void PowerSupplyController::requestConnection() {
 }
 
 void PowerSupplyController::requestDataFlow() {
-    if (!can) {
-        emit logMessage("Power Control: Warning! CAN is not initialized.");
-        return;
-    }
+    if (!can) return;
     can->sendCommand(getTargetId(), Command::START_MEASURE, {0x00, 0x07, 0x30}); // {CHANNEL, PERIOD, ONCE=0x20/FLOW=0x30}
 }
 
@@ -181,17 +181,23 @@ void PowerSupplyController::processRegisterData(const CAN_PACKET& rcv) {
 }
 
 void PowerSupplyController::handleMessage(const CAN_PACKET& pkt) {
-    uint8_t cmd = pkt.data[0];
-    if (cmd == Command::START_MEASURE) {
-        processADCData(pkt);
-    } else if (cmd == Command::ASK_REGISTER) {
-        processRegisterData(pkt);
-    } else {
-        QString hexData;
-        uint64_t data = 0;
-        for (int i = 0; i < pkt.len; ++i) {
-            hexData += QString("%1 ").arg(pkt.data[i], 2, 16, QChar('0')).toUpper();
+    if (isMyReply(pkt.CAN_ID)) {
+        lastMsgTime = QDateTime::currentMSecsSinceEpoch();
+        uint8_t cmd = pkt.data[0];
+        if (cmd == Command::START_MEASURE) {
+            processADCData(pkt);
+        } else if (cmd == Command::ASK_REGISTER) {
+            processRegisterData(pkt);
+        } else if (cmd == Command::CHECK_CONNECT) {
+            cdacResponded = true;
+        } else {
+            can->handleUnknownPacket(pkt, "Power Control");
         }
-        emit logMessage(QString("SystemManager: Received unexpected data. ID: 0x%1 Data(HEX): %2").arg(QString::number(pkt.CAN_ID, 16).toUpper(), hexData.trimmed()));
     }
+}
+
+void PowerSupplyController::onSystemStop() {
+    setCurrent(0);
+    setPowerState(false);
+    cdacResponded = false;
 }
