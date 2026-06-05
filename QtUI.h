@@ -37,9 +37,9 @@ private:
     void setupUI();
     void updateLamps(uint8_t status);
     
-    SystemManager *m_manager;
+    SystemManager *systemManager;
     QTimer *updateTimer;
-    QElapsedTimer m_elapsedTimer;
+    QElapsedTimer elapsedTimer;
 
     QLabel *tempLabel;
     QLabel *flowLabel;
@@ -75,6 +75,7 @@ private:
     QPushButton *stopBtn;
 
     QLineSeries *currentSeries;
+    QVector<QPointF> ringBuffer;
     QChart *currentChart;
     float time_axis;
     float updateFreq;

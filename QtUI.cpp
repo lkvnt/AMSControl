@@ -14,16 +14,16 @@
 #include "SettingsManager.h"
 
 MainWindow::MainWindow(SystemManager *manager, QWidget *parent)
-    : QMainWindow(parent), m_manager(manager), time_axis(0.0f)
+    : QMainWindow(parent), systemManager(manager), time_axis(0.0f)
 {
     setupUI();
     resize(900, 700);
 
-    m_elapsedTimer.start();
+    elapsedTimer.start();
 
-    connect(m_manager, &SystemManager::logMessage, this, &MainWindow::onLogMessage);
+    connect(systemManager, &SystemManager::logMessage, this, &MainWindow::onLogMessage);
 
-    connect(m_manager, &SystemManager::busyStateChanged, this, &MainWindow::onBusyStateChanged);
+    connect(systemManager, &SystemManager::busyStateChanged, this, &MainWindow::onBusyStateChanged);
 
     updateTimer = new QTimer(this);
     updateFreq = SettingsManager::instance().get("update_frequency").toInt();
@@ -33,7 +33,7 @@ MainWindow::MainWindow(SystemManager *manager, QWidget *parent)
 
     onBusyStateChanged(false);
     QTimer::singleShot(200, this, [this]() {
-        m_manager->initHardware();
+        systemManager->initHardware();
     });
 }
 
@@ -83,12 +83,12 @@ void MainWindow::setupUI() {
     connect(mainSettingsBtn, &QPushButton::clicked, [this]() {
         SettingsDialog dlg("Главная", this);
 
-        connect(&dlg, &SettingsDialog::reqPowerOn, m_manager, &SystemManager::manualPowerOn);
-        connect(&dlg, &SettingsDialog::reqPowerOff, m_manager, &SystemManager::manualPowerOff);
-        connect(&dlg, &SettingsDialog::reqResetProt, m_manager, &SystemManager::manualResetProt);
-        connect(&dlg, &SettingsDialog::reqSetCurrent, m_manager, &SystemManager::manualSetCurrent);
-        connect(&dlg, &SettingsDialog::reqCoolingOn, m_manager, &SystemManager::manualCoolingOn);
-        connect(&dlg, &SettingsDialog::reqCoolingOff, m_manager, &SystemManager::manualCoolingOff);
+        connect(&dlg, &SettingsDialog::reqPowerOn, systemManager, &SystemManager::manualPowerOn);
+        connect(&dlg, &SettingsDialog::reqPowerOff, systemManager, &SystemManager::manualPowerOff);
+        connect(&dlg, &SettingsDialog::reqResetProt, systemManager, &SystemManager::manualResetProt);
+        connect(&dlg, &SettingsDialog::reqSetCurrent, systemManager, &SystemManager::manualSetCurrent);
+        connect(&dlg, &SettingsDialog::reqCoolingOn, systemManager, &SystemManager::manualCoolingOn);
+        connect(&dlg, &SettingsDialog::reqCoolingOff, systemManager, &SystemManager::manualCoolingOff);
 
         dlg.exec();
     });
@@ -395,10 +395,10 @@ void MainWindow::onDataFileDoubleClicked(QListWidgetItem *item) {
 }
 
 void MainWindow::onTimerTick() {
-    globalCurrent->setText(QString("Ток: %1 А").arg(m_manager->getCurrent(), 0, 'f', 2));
-    globalTemp->setText(QString("Темп: %1 °C").arg(m_manager->getTemp(), 0, 'f', 1));
+    globalCurrent->setText(QString("Ток: %1 А").arg(systemManager->getCurrent(), 0, 'f', 2));
+    globalTemp->setText(QString("Темп: %1 °C").arg(systemManager->getTemp(), 0, 'f', 1));
 
-    uint8_t status = m_manager->getStatusFlags();
+    uint8_t status = systemManager->getStatusFlags();
     bool isPowerOn = (status & 0x01);
     bool hasError = (status & 0x3E) != 0;
 
@@ -409,30 +409,33 @@ void MainWindow::onTimerTick() {
     auto setCol = [](QLabel* l, bool cond, const char* cOn, const char* cOff) {
         l->setStyleSheet(QString("border-radius:5px; min-width:90px; min-height:25px; font-weight: bold; font-size:10px; color:white; background-color: %1;").arg(cond ? cOn : cOff));
     };
-    setCol(pumpLed, m_manager->getCoolState(), "lightgreen", "gray");
-    setCol(radiatorLed, m_manager->getCoolState(), "lightgreen", "gray");
-    tempLabel->setText(QString("Температура: %1 °C").arg(m_manager->getTemp()));
-    flowLabel->setText(QString("Поток: %1 л/мин").arg(m_manager->getFlow()));
+    setCol(pumpLed, systemManager->getCoolState(), "lightgreen", "gray");
+    setCol(radiatorLed, systemManager->getCoolState(), "lightgreen", "gray");
+    tempLabel->setText(QString("Температура: %1 °C").arg(systemManager->getTemp()));
+    flowLabel->setText(QString("Поток: %1 л/мин").arg(systemManager->getFlow()));
 
-    float cur = m_manager->getCurrent();
-    float volt = m_manager->getAdcVoltage();
+    float cur = systemManager->getCurrent();
+    float volt = systemManager->getAdcVoltage();
 
     currentValLabel->setText(QString("Текущий ток: %1 А").arg(cur, 0, 'f', 2));
     adcVoltLabel->setText(QString("Напряжение АЦП: %1 В").arg(volt, 0, 'f', 4));
 
-    float real_time_axis = m_elapsedTimer.elapsed() / 1000.0f;
-    currentSeries->append(real_time_axis, cur);
-    if (currentSeries->count() > 11 * updateFreq) currentSeries->remove(0); 
+    float real_time_axis = elapsedTimer.elapsed() / 1000.0f;
+    
+    ringBuffer.append(QPointF(real_time_axis, cur));
+    if (ringBuffer.size() > 11 * updateFreq) ringBuffer.removeFirst(); 
+    currentSeries->replace(ringBuffer);
+
     currentChart->axes(Qt::Horizontal).first()->setRange(real_time_axis - 10.0f, real_time_axis);
     time_axis += 1.0 / updateFreq;
     
-    updateLamps(m_manager->getStatusFlags());
+    updateLamps(systemManager->getStatusFlags());
 
-    faradayLabel->setText(QString("Цилиндр Фарадея: \t %1 В").arg(m_manager->getFaraday(), 0, 'f', 4));
+    faradayLabel->setText(QString("Цилиндр Фарадея: \t %1 В").arg(systemManager->getFaraday(), 0, 'f', 4));
 
-    hallLabel->setText(QString("Датчик Холла: \t\t %1 мВ").arg(m_manager->getHall() * 1000.0f, 0, 'f', 2));
+    hallLabel->setText(QString("Датчик Холла: \t\t %1 мВ").arg(systemManager->getHall() * 1000.0f, 0, 'f', 2));
     
-    float vacuum_v = m_manager->getVacuum();
+    float vacuum_v = systemManager->getVacuum();
     vacuumVoltLabel->setText(QString("Вакуум (Вольт): \t %1 В").arg(vacuum_v, 0, 'f', 4));
 
     vacuum_v = std::max(0.0f, std::min(10.0f, vacuum_v));
@@ -464,14 +467,14 @@ void MainWindow::updateLamps(uint8_t status) {
 }
 
 void MainWindow::onBusyStateChanged(bool isBusy) {
-    startBtn->setEnabled(!m_manager->isOk() && !isBusy);
-    stopBtn->setEnabled(m_manager->isOk() || isBusy); 
-    setBtn->setEnabled(m_manager->isOk() && !isBusy);
-    currentSpinBox->setEnabled(m_manager->isOk() && !isBusy);
+    startBtn->setEnabled(!systemManager->isOk() && !isBusy);
+    stopBtn->setEnabled(systemManager->isOk() || isBusy); 
+    setBtn->setEnabled(systemManager->isOk() && !isBusy);
+    currentSpinBox->setEnabled(systemManager->isOk() && !isBusy);
 }
 
-void MainWindow::handleStart() { m_manager->startSystem(); }
+void MainWindow::handleStart() { systemManager->startSystem(); }
 
-void MainWindow::handleStop() { m_manager->stopSystem(); }
+void MainWindow::handleStop() { systemManager->stopSystem(); }
 
-void MainWindow::handleSetCurrent() { m_manager->setCurrent(currentSpinBox->value()); }
+void MainWindow::handleSetCurrent() { systemManager->setCurrent(currentSpinBox->value()); }
