@@ -51,6 +51,8 @@ DataViewerWindow::DataViewerWindow(const QString& filePath, QWidget *parent)
     setWindowTitle("Просмотр логов данных: " + filePath.split('/').last());
     resize(900, 600);
 
+    cancelFlag = std::make_shared<std::atomic<bool>>(false);
+
     auto *centralWidget = new QWidget(this);
     auto *mainLayout = new QVBoxLayout(centralWidget);
 
@@ -91,14 +93,19 @@ DataViewerWindow::DataViewerWindow(const QString& filePath, QWidget *parent)
     loadAndShowData(m_filePath);
 }
 
+DataViewerWindow::~DataViewerWindow() {
+    *cancelFlag = true;
+}
+
 void DataViewerWindow::loadAndShowData(const QString& filePath) {
     setWindowTitle("Загрузка данных... Пожалуйста, подождите.");
     m_metricCombo->setEnabled(false);
     m_resetZoomBtn->setEnabled(false);
 
+    std::shared_ptr<std::atomic<bool>> _cancelFlag = this->cancelFlag;
     QPointer<DataViewerWindow> safeThis = this;
 
-    QThread *thread = QThread::create([safeThis, filePath]() {
+    QThread *thread = QThread::create([safeThis, filePath, _cancelFlag]() {
         QVector<TelemetryRecord> parsedRecords;
         QFile file(filePath);
         
@@ -113,7 +120,7 @@ void DataViewerWindow::loadAndShowData(const QString& filePath) {
             };
 
             while (!in.atEnd()) {
-                if (!safeThis) break; 
+                if (*_cancelFlag) break; 
 
                 QString line = in.readLine();
                 QStringList tokens = line.split(',');
@@ -137,7 +144,7 @@ void DataViewerWindow::loadAndShowData(const QString& filePath) {
             }
         }
 
-        if (safeThis) {
+        if (!*_cancelFlag && safeThis) {
             QMetaObject::invokeMethod(safeThis, [safeThis, parsedRecords, filePath]() {
                 if (safeThis) {
                     safeThis->m_dataRecords = parsedRecords;

@@ -26,7 +26,7 @@ class DataViewerWindow : public QMainWindow {
     Q_OBJECT
 public:
     explicit DataViewerWindow(const QString& filePath, QWidget *parent = nullptr);
-    ~DataViewerWindow() = default;
+    ~DataViewerWindow();
 
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
@@ -52,6 +52,8 @@ private:
     QList<QLineSeries*> m_seriesList;
     QDateTimeAxis* m_axisX;
     QValueAxis* m_axisY;
+
+    std::shared_ptr<std::atomic<bool>> cancelFlag;
 };
 
 #endif // DATAVIEWERWINDOW_H
