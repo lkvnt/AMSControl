@@ -11,10 +11,15 @@ SystemManager::SystemManager(std::unique_ptr<Logger> eventLogger,
                              std::unique_ptr<Logger> telemetryLogger,
                              QObject* parent)
     :   QObject(parent),
-        updateFreq(10.0f),
-        m_eventLogger(std::move(eventLogger)),
-        m_telemetryLogger(std::move(telemetryLogger))
+        updateFreq(10.0f)
 {
+    logWorker = new LogWorker(std::move(eventLogger), std::move(telemetryLogger));
+    logWorker->moveToThread(&logThread);
+    connect(&logThread, &QThread::finished, logWorker, &QObject::deleteLater);
+    connect(this, &SystemManager::requestEventLog, logWorker, &LogWorker::onEventLogRequested);
+    connect(this, &SystemManager::requestTelemetryLog, logWorker, &LogWorker::onTelemetryLogRequested);
+    logThread.start();
+
     connect(&canBus, &CanBusManager::logMessage, this, &SystemManager::logMessage);
     connect(&power, &PowerSupplyController::logMessage, this, &SystemManager::logMessage);
     connect(&cooling, &CoolingController::logMessage, this, &SystemManager::logMessage);
@@ -39,6 +44,9 @@ SystemManager::SystemManager(std::unique_ptr<Logger> eventLogger,
 }
 
 SystemManager::~SystemManager() {
+    logThread.quit();
+    logThread.wait();
+
     power.stopDataFlow();
     sensors.stopDataFlow();
     cooling.stopDataFlow();
@@ -259,9 +267,7 @@ void SystemManager::setCurrent(float amperes, bool manual) {
 void SystemManager::onLogMessageReceived(const QString& formattedMsg) {
     QString fileName = "Log-" + QDateTime::currentDateTime().toString("dd-MM-yyyy");
     
-    if (m_eventLogger) {
-        m_eventLogger->log("Logs", fileName, formattedMsg);
-    }
+    emit requestEventLog("Logs", fileName, formattedMsg);
 }
 
 void SystemManager::onDataLogTimeout() {
@@ -279,7 +285,5 @@ void SystemManager::onDataLogTimeout() {
         data["pressure"] = pressure.value();
     }
      
-    if (m_telemetryLogger) {
-        QThreadPool::globalInstance()->start(new LogTask(m_telemetryLogger.get(), "Logs", fileName, data));
-    }
+    emit requestTelemetryLog("Logs", fileName, data);
 }

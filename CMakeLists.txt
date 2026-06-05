@@ -42,6 +42,8 @@ set(SOURCES
     SettingsDialog.cpp
     SettingsManager.h
     SettingsManager.cpp
+    LogWorker.h
+    LogWorker.cpp
     Logger.h
     LoggerTXT.h
     LoggerTXT.cpp

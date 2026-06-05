@@ -7,6 +7,7 @@
 #include "CanBusManager.h"
 #include "SensorControl.h"
 #include "Logger.h"
+#include "LogWorker.h"
 
 class SystemManager : public QObject {
     Q_OBJECT
@@ -53,6 +54,8 @@ signals:
 private slots:
     void onLogMessageReceived(const QString& msg);
     void onDataLogTimeout();
+    void requestEventLog(const QString& dirPath, const QString& fileName, const QVariant& data);
+    void requestTelemetryLog(const QString& dirPath, const QString& fileName, const QVariant& data);
 
 private:
     CanBusManager canBus;
@@ -70,8 +73,8 @@ private:
     void checkInterlocks(float flow, float temp, uint8_t power_status); // TODO: сделать в настройках выбор проверять или нет
 
     QTimer *dataLogTimer;
-    std::unique_ptr<Logger> m_eventLogger;
-    std::unique_ptr<Logger> m_telemetryLogger;
+    QThread logThread;
+    LogWorker *logWorker;
 };
 
 #endif // SYSTEM_MANAGER_H
