@@ -50,12 +50,12 @@ signals:
     void logMessage(const QString& msg);
     void busyStateChanged(bool isBusy);
     void stopSystemSignal();
+    void requestEventLog(const QString& dirPath, const QString& fileName, const QVariant& data);
+    void requestTelemetryLog(const QString& dirPath, const QString& fileName, const QVariant& data);
 
 private slots:
     void onLogMessageReceived(const QString& msg);
     void onDataLogTimeout();
-    void requestEventLog(const QString& dirPath, const QString& fileName, const QVariant& data);
-    void requestTelemetryLog(const QString& dirPath, const QString& fileName, const QVariant& data);
 
 private:
     CanBusManager canBus;
