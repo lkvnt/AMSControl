@@ -79,6 +79,16 @@ bool CanBusManager::sendCommand(uint32_t target_id, uint8_t cmd, const std::vect
     return CanSendMsg(card_handle, &pkg) == 0;
 }
 
+void CanBusManager::handleUnknownPacket(const CAN_PACKET& pkt, const QString& prefix) {
+    QString hexData;
+    uint64_t data = 0;
+    for (int i = 0; i < pkt.len; ++i) {
+        hexData += QString("%1 ").arg(pkt.data[i], 2, 16, QChar('0')).toUpper();
+    }
+    QString message = prefix + QString(": Received unexpected data. ID: 0x%1 Data(HEX): %2").arg(QString::number(pkt.CAN_ID, 16).toUpper(), hexData.trimmed());
+    emit logMessage(message);
+}
+
 void CanBusManager::pollCanBus() {
     if (card_handle < 0) return;
     

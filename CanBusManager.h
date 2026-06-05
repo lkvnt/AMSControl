@@ -6,9 +6,9 @@
 #include <vector>
 #include <cstdint>
 
-#define WIN32_LEAN_AND_MEAN
-#define NOMINMAX
-#include <windows.h>
+// #define WIN32_LEAN_AND_MEAN
+// #define NOMINMAX
+// #include <windows.h>
 
 #include "Pci7841.h"
 
@@ -22,6 +22,7 @@ public:
     void close();
     bool sendCommand(uint32_t target_id, const std::vector<uint8_t>& payload);
     bool sendCommand(uint32_t target_id, uint8_t cmd, const std::vector<uint8_t>& payload);
+    void handleUnknownPacket(const CAN_PACKET& pkt, const QString& prefix);
 
     bool isOpen() const { return card_handle != -1; }
 
