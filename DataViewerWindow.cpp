@@ -211,6 +211,7 @@ void DataViewerWindow::updateChart() {
         
         // Порядок важен
         m_chart->addSeries(series);
+        m_chart->setCacheMode(QChart::DeviceCoordinateCache);
         series->setUseOpenGL(true);
         series->setColor(seriesColor);
         series->replace(segmentData);
