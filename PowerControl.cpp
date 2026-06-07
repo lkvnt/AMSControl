@@ -185,6 +185,19 @@ void PowerSupplyController::processRegisterData(const CAN_PACKET& rcv) {
     }
 }
 
+std::pair<bool, QString> PowerSupplyController::messageFromRegister(uint8_t reg) const {
+    switch (reg) {
+        case 0x00: return {false, "VCH-300 is off!"};
+        case 0x01: return {true, "VCH-300 is on."};
+        case 0x02: return {false, "Out protection 1!"};
+        case 0x04: return {false, "Out protection 2!"};
+        case 0x08: return {false, "Temperature protection!"};
+        case 0x10: return {false, "Invertor error!"};
+        case 0x20: return {false, "Phases error!"};
+        default: return {false, "Unknown status!"};
+    }
+}
+
 void PowerSupplyController::handleMessage(const CAN_PACKET& pkt) {
     if (isMyReply(pkt.CAN_ID)) {
         lastMsgTime = QDateTime::currentMSecsSinceEpoch();

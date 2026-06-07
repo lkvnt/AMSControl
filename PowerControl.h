@@ -38,6 +38,8 @@ public:
 
     const uint8_t REGISTER_HAS_ERROR = 0x3E;
 
+    std::pair<bool, QString> messageFromRegister(uint8_t reg) const;
+
 signals:
     void logMessage(const QString& msg);
     void deviceBusyStateChanged(bool isBusy);

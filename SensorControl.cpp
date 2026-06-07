@@ -98,6 +98,7 @@ void SensorController::processADCData(const CAN_PACKET& rcv) {
         } 
         else if (channel == chVacuum) {
             vacuum_v = voltage;
+            vacuum_p = getPressFromVolt(vacuum_v);
         }
     }
 }

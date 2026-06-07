@@ -25,7 +25,7 @@ public:
     
     void update(); 
 
-    void setCurrent(float amperes, bool manual = false);
+    void setCurrent(float amperes);
 
     float getTemp() const { return cooling.getTemperature(); }
     float getFlow() const { return cooling.getFlowRate(); }
@@ -34,7 +34,10 @@ public:
     float getFaraday1() const { return sensors.getFaraday1Voltage(); }
     float getFaraday2() const { return sensors.getFaraday2Voltage(); }
     float getHall() const { return sensors.getHallVoltage(); }
-    float getVacuum() const { return sensors.getVacuumVoltage(); }
+    float getVacuumVoltage() const { return sensors.getVacuumVoltage(); }
+    std::optional<double> getVacuumPressure() const { return sensors.getVacuumPressure(); }
+
+    QString formateVacuumValue(std::optional<double> value) const;
 
     bool getCoolState() const { return cooling.getState(); }
     bool isOk() const { return is_running; }

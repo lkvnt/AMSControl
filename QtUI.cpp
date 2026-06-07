@@ -443,22 +443,11 @@ void MainWindow::onTimerTick() {
 
     hallLabel->setText(QString("Датчик Холла: \t\t %1 мВ").arg(systemManager->getHall() * 1000.0f, 0, 'f', 2));
     
-    float vacuum_v = systemManager->getVacuum();
+    float vacuum_v = systemManager->getVacuumVoltage();
+    auto vacuum_p = systemManager->getVacuumPressure();
     vacuumVoltLabel->setText(QString("Вакуум (Вольт): \t %1 В").arg(vacuum_v, 0, 'f', 4));
 
-    vacuum_v = std::max(0.0f, std::min(10.0f, vacuum_v));
-    auto optPressure = SensorController::getPressFromVolt(vacuum_v);
-    if (optPressure.has_value()) {
-        double pressure = optPressure.value();
-        int exponent = std::floor(std::log10(pressure));
-        double mantissa = pressure / std::pow(10.0, exponent);
-        vacuumPressLabel->setText(QString("Вакуум (Давление): %1 * 10^%2 Па")
-                            .arg(mantissa, 0, 'f', 2)
-                            .arg(exponent));
-    }
-    else {
-        vacuumPressLabel->setText(QString("Вакуум (Давление): \t Напр. вне рабочего диапазона"));
-    }
+    vacuumPressLabel->setText(QString("Вакуум (Давление): ") + systemManager->formateVacuumValue(vacuum_p));
 }
 
 void MainWindow::updateLamps(uint8_t status) {

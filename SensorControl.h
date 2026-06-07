@@ -23,6 +23,7 @@ public:
     float getFaraday2Voltage() const { return faraday2_v; }
     float getHallVoltage() const { return hall_v; }
     float getVacuumVoltage() const { return vacuum_v; }
+    std::optional<double> getVacuumPressure() const { return vacuum_p; }
     bool isResponded() const { return cacResponded; }
     qint64 getLastMsgTime() const { return lastMsgTime; }
 
@@ -48,6 +49,7 @@ private:
     float faraday2_v;
     float hall_v;
     float vacuum_v;
+    std::optional<double> vacuum_p;
 
     bool cacResponded = false;
     qint64 lastMsgTime;

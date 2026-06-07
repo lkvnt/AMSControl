@@ -120,7 +120,7 @@ void SystemManager::continueStartSystem(int step) {
             } else {
                 cooling.setState(true); // Ардуино отправит сообщение о наличии/отсутствии потока
                 QTimer::singleShot(1000, this, [this]() {
-                    if (!cooling.getState()) { // Если не поднялся поток то будет false
+                    if (!getCoolState()) { // Если не поднялся поток то будет false
                         emit logMessage("SystemManager: Warning! Pump error! Startup process is stopped");
                         stopSystem();
                     } else {
@@ -157,8 +157,8 @@ void SystemManager::continueStartSystem(int step) {
                         return; 
                     }
 
-                    uint8_t status = power.getStatusFlags();
-                    if (status & 0x01) { 
+                    auto processedStatus = power.messageFromRegister(getStatusFlags());
+                    if (processedStatus.first) { 
                         emit logMessage("SystemManager: System started successfully.");
 
                         is_running = true;
@@ -166,26 +166,9 @@ void SystemManager::continueStartSystem(int step) {
                         startup_step = 0;
                         emit busyStateChanged(false);
                     }
-                    else if (status == 0x00) {
-                        emit logMessage("SystemManager: Warning! Timeout for startup.");
-                        stopSystem();
-                    }
                     else {
-                        if (status & 0x02) {
-                            emit logMessage("SystemManager: Out protection 1!.");
-                        }
-                        if (status & 0x04) {
-                            emit logMessage("SystemManager: Out protection 2!.");
-                        }
-                        if (status & 0x08) {
-                            emit logMessage("SystemManager: Temperature protection!.");
-                        }
-                        if (status & 0x10) {
-                            emit logMessage("SystemManager: Invertor error!.");
-                        }
-                        if (status & 0x20) {
-                            emit logMessage("SystemManager: Phases error!.");
-                        }
+                        QString msgToEmit = QString("SystemManager: ") + processedStatus.second;
+                        emit logMessage(msgToEmit);
                         stopSystem();
                         return;
                     }
@@ -253,8 +236,8 @@ void SystemManager::checkInterlocks(float flow, float temp, uint8_t power_status
     if (alarm) stopSystem();
 }
 
-void SystemManager::setCurrent(float amperes, bool manual) {
-    if (is_running || manual) {
+void SystemManager::setCurrent(float amperes) {
+    if (is_running) {
         power.setCurrent(amperes);
     } else {
         emit logMessage("SystemManager: Warning! Trying to set current while system is off.");
@@ -271,7 +254,7 @@ void SystemManager::onDataLogTimeout() {
     QString fileName = "Data-" + QDateTime::currentDateTime().toString("dd-MM-yyyy");
     
     QVariantMap data;
-    auto pressure = sensors.getPressFromVolt(getVacuum());
+    auto pressure = getVacuumPressure();
     data["timestamp"]   = QDateTime::currentMSecsSinceEpoch();
     data["current"]     = getCurrent();
     data["temp"]        = getTemp();
@@ -284,6 +267,17 @@ void SystemManager::onDataLogTimeout() {
     }
      
     emit requestTelemetryLog("Logs", fileName, data);
+}
+
+QString SystemManager::formateVacuumValue(std::optional<double> value) const {
+    if (value.has_value()) {
+        double pressure = value.value();
+        int exponent = std::floor(std::log10(pressure));
+        double mantissa = pressure / std::pow(10.0, exponent);
+        return QString("%1 × 10^%2 Па").arg(mantissa, 0, 'f', 2).arg(exponent);
+    } else {
+        return QString("Напр. вне рабочего диапазона");
+    }
 }
 
 void SystemManager::manualPowerOn() { 
@@ -314,7 +308,7 @@ void SystemManager::manualResetProt() {
 
 void SystemManager::manualSetCurrent(float amperes) {
     if (canBus.isOpen()) {
-        setCurrent(amperes, true);
+        power.setCurrent(amperes);
     } else {
         emit logMessage("SystemManager: Warning! CAN is not initialized. Cannot set current.");
     }
