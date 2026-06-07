@@ -14,7 +14,9 @@ enum Command {
 };
 
 CoolingController::CoolingController(QObject* parent)
-    : QObject(parent), can(nullptr), waterFlow(0), state(false) {
+    : QObject(parent), can(nullptr), waterFlow(0), state(false) 
+{
+    lastMsgTime = QDateTime::currentMSecsSinceEpoch();
     dev_id = SettingsManager::instance().get("cool_deviceId").toInt();
 }
 

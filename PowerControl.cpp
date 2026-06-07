@@ -16,9 +16,11 @@ enum Command {
 };
 
 PowerSupplyController::PowerSupplyController(QObject* parent) 
-    : QObject(parent), can(nullptr), current_actual(0.0f), voltage_actual(0.0f), status_flags(0), isBusy(false) {
+    : QObject(parent), can(nullptr), current_actual(0.0f), voltage_actual(0.0f), status_flags(0), isBusy(false) 
+{
+        lastMsgTime = QDateTime::currentMSecsSinceEpoch();
         dev_id = SettingsManager::instance().get("power_deviceId").toInt();
-    }
+}
 
 void PowerSupplyController::setCanInterface(CanBusManager* can_interface) {
     if (can) {

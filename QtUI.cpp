@@ -171,6 +171,7 @@ void MainWindow::setupUI() {
     pLayout->addLayout(statusLayout);
 
     currentSeries = new QLineSeries();
+    currentSeries->setUseOpenGL(true);
     currentChart = new QChart();
     currentChart->addSeries(currentSeries);
     currentChart->createDefaultAxes();
@@ -419,21 +420,22 @@ void MainWindow::onTimerTick() {
     tempLabel->setText(QString("Температура: %1 °C").arg(systemManager->getTemp()));
     flowLabel->setText(QString("Поток: %1 л/мин").arg(systemManager->getFlow()));
 
-    float cur = systemManager->getCurrent();
-    float volt = systemManager->getAdcVoltage();
+    if (systemManager->isPowerFresh(SettingsManager::instance().get("interface_freshness_limit").toInt())) {
+        float cur = systemManager->getCurrent();
+        float volt = systemManager->getAdcVoltage();
 
-    currentValLabel->setText(QString("Текущий ток: %1 А").arg(cur, 0, 'f', 2));
-    adcVoltLabel->setText(QString("Напряжение АЦП: %1 В").arg(volt, 0, 'f', 4));
+        currentValLabel->setText(QString("Текущий ток: %1 А").arg(cur, 0, 'f', 2));
+        adcVoltLabel->setText(QString("Напряжение АЦП: %1 В").arg(volt, 0, 'f', 4));
 
-    float real_time_axis = elapsedTimer.elapsed() / 1000.0f;
-    
-    ringBuffer.append(QPointF(real_time_axis, cur));
-    if (ringBuffer.size() > 11 * updateFreq) ringBuffer.removeFirst(); 
-    currentSeries->replace(ringBuffer);
+        float real_time_axis = elapsedTimer.elapsed() / 1000.0f;
+        
+        ringBuffer.append(QPointF(real_time_axis, cur));
+        if (ringBuffer.size() > 11 * updateFreq) ringBuffer.removeFirst(); 
+        currentSeries->replace(ringBuffer);
 
-    currentChart->axes(Qt::Horizontal).first()->setRange(real_time_axis - 10.0f, real_time_axis);
-    time_axis += 1.0 / updateFreq;
-    
+        currentChart->axes(Qt::Horizontal).first()->setRange(real_time_axis - 10.0f, real_time_axis);
+        time_axis += 1.0 / updateFreq;
+    }
     updateLamps(systemManager->getStatusFlags());
 
     faraday1Label->setText(QString("Цилиндр Фарадея: \t %1 В").arg(systemManager->getFaraday1(), 0, 'f', 4));

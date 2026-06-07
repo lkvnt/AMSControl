@@ -40,7 +40,7 @@ private:
     uint16_t waterFlow;
     uint8_t dev_id;
     bool arduinoResponded = false;
-    qint64 lastMsgTime = 0;
+    qint64 lastMsgTime;
 
 signals:
     void logMessage(const QString& msg);

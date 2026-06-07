@@ -75,8 +75,17 @@ SettingsDialog::SettingsDialog(const QString& tabName, QWidget *parent) : QDialo
         connect(sensorDataBtn, &QPushButton::clicked, this, &SettingsDialog::reqSensorData);
         sLayout->addWidget(sensorDataBtn);
         form->addRow(sLayout);
+
+        auto *fLayout = new QHBoxLayout();
+        auto *freshSpin = new QSpinBox();
+        freshSpin->setRange(1, 10000);
+        freshSpin->setValue(sm.get("interface_freshness_limit").toInt() / 1000);
+        fLayout->addWidget(new QLabel("Interface freshness limit (s): "));
+        fLayout->addWidget(freshSpin);
+        form->addRow(fLayout);
         
         connect(this, &QDialog::accepted, [=, &sm]() {
+            sm.set("interface_freshness_limit", freshSpin->value() * 1000);
             if ((freqSpin->value() != oldFreq) || (pollSpin->value() != oldPoll)) {
                 sm.set("update_frequency", freqSpin->value());
                 sm.set("can_bus_poll_timer", pollSpin->value());

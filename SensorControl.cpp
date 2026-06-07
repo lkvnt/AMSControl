@@ -14,9 +14,11 @@ enum Command {
 };
 
 SensorController::SensorController(QObject* parent) 
-    : QObject(parent), can(nullptr), faraday1_v(0), faraday2_v(0), hall_v(0), vacuum_v(0) {
+    : QObject(parent), can(nullptr), faraday1_v(0), faraday2_v(0), hall_v(0), vacuum_v(0) 
+{
+        lastMsgTime = QDateTime::currentMSecsSinceEpoch();
         dev_id = SettingsManager::instance().get("sensor_deviceId").toInt();
-    }
+}
 
 void SensorController::setCanInterface(CanBusManager* can_interface) {
     if (can) {

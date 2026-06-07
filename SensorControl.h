@@ -50,7 +50,7 @@ private:
     float vacuum_v;
 
     bool cacResponded = false;
-    qint64 lastMsgTime = 0;
+    qint64 lastMsgTime;
 };
 
 #endif // SENSORCONTROL_H

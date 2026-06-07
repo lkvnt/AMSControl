@@ -56,7 +56,7 @@ private:
     uint8_t status_flags;
     bool isBusy;
     bool cdacResponded = false;
-    qint64 lastMsgTime = 0;
+    qint64 lastMsgTime;
 };
 
 #endif

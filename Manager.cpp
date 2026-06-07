@@ -1,7 +1,6 @@
 #include <iostream>
 #include <QFile>
 #include <QDir>
-#include <QDateTime>
 #include <QElapsedTimer>
 #include <QThreadPool>
 #include "Manager.h"
@@ -213,18 +212,16 @@ void SystemManager::stopSystem() {
 void SystemManager::update() {
     if (!canBus.isOpen()) return;
 
-    qint64 now = QDateTime::currentMSecsSinceEpoch();
-
     if (is_running) {
-        if ((now - power.getLastMsgTime()) > 1000) {
+        if (!isPowerFresh(1000)) {
             emit logMessage("SystemManager: ERROR! Lost connection with CDAC20 (power), timeout!");
             stopSystem();
         }
-        if ((now - sensors.getLastMsgTime()) > 1000) {
+        if (!isSensorsFresh(1000)) {
             emit logMessage("SystemManager: ERROR! Lost connection with CAC208 (sensors), timeout!");
             stopSystem();
         }
-        if ((now - cooling.getLastMsgTime()) > 1000) {
+        if (!isCoolFresh(1000)) {
             emit logMessage("SystemManager: ERROR! Lost connection with Arduino (cooling), Timeout!");
             stopSystem();
         }

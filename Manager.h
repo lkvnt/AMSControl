@@ -2,6 +2,7 @@
 #define MANAGER_H
 
 #include <QObject>
+#include <QDateTime>
 #include "PowerControl.h"
 #include "CoolControl.h"
 #include "CanBusManager.h"
@@ -39,6 +40,10 @@ public:
     bool isOk() const { return is_running; }
     bool isBusy() const { return power.isDeviceBusy() || startup_step > 0; }
     uint8_t getStatusFlags() const { return power.getStatusFlags(); }
+
+    bool isPowerFresh(int msec) const { return QDateTime::currentMSecsSinceEpoch() - power.getLastMsgTime() < msec; }
+    bool isCoolFresh(int msec) const { return QDateTime::currentMSecsSinceEpoch() - cooling.getLastMsgTime() < msec; }
+    bool isSensorsFresh(int msec) const { return QDateTime::currentMSecsSinceEpoch() - sensors.getLastMsgTime() < msec; }
 
     void manualPowerOn();
     void manualPowerOff();
