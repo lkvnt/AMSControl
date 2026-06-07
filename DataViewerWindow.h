@@ -43,9 +43,12 @@ private:
 
     QString m_filePath;
     QVector<TelemetryRecord> m_dataRecords;
-    QVector<QPointF> m_currentPoints;
 
-    QComboBox* m_metricCombo;
+    QVector<QPointF> m_currentPoints1;
+    QVector<QPointF> m_currentPoints2;
+
+    QComboBox* m_metricCombo1;
+    QComboBox* m_metricCombo2;
     QPushButton* m_resetZoomBtn;
     
     QChart* m_chart;
@@ -53,6 +56,10 @@ private:
     QList<QLineSeries*> m_seriesList;
     QDateTimeAxis* m_axisX;
     QValueAxis* m_axisY;
+    QValueAxis* m_axisY2;
+
+    QAbstractSeries* m_seriesMetric1 = nullptr;
+    QAbstractSeries* m_seriesMetric2 = nullptr;
 
     std::shared_ptr<std::atomic<bool>> cancelFlag;
 };
