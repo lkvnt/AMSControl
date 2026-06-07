@@ -21,7 +21,7 @@ SettingsDialog::SettingsDialog(const QString& tabName, QWidget *parent) : QDialo
     SettingsManager &sm = SettingsManager::instance();
 
     if (tabName == "Главная") {
-        auto *sLayout = new QHBoxLayout();
+        auto *tLayout = new QHBoxLayout();
         auto *freqSpin = new QSpinBox();
         freqSpin->setRange(1, 100);
         int oldFreq = sm.get("update_frequency").toInt();
@@ -30,11 +30,11 @@ SettingsDialog::SettingsDialog(const QString& tabName, QWidget *parent) : QDialo
         pollSpin->setRange(1, 1000);
         int oldPoll = sm.get("can_bus_poll_timer").toInt();
         pollSpin->setValue(oldPoll);
-        sLayout->addWidget(new QLabel("UI update frequency: "));
-        sLayout->addWidget(freqSpin);
-        sLayout->addWidget(new QLabel("CAN bus poll timer: "));
-        sLayout->addWidget(pollSpin);
-        form->addRow(sLayout);
+        tLayout->addWidget(new QLabel("UI update frequency: "));
+        tLayout->addWidget(freqSpin);
+        tLayout->addWidget(new QLabel("CAN bus poll timer: "));
+        tLayout->addWidget(pollSpin);
+        form->addRow(tLayout);
 
         auto *pLayout = new QHBoxLayout();
         auto *powerOnBtn = new QPushButton("Turn on VCH-300");
@@ -69,6 +69,12 @@ SettingsDialog::SettingsDialog(const QString& tabName, QWidget *parent) : QDialo
         cLayout->addWidget(coolOnBtn);
         cLayout->addWidget(coolOffBtn);
         form->addRow(cLayout);
+
+        auto *sLayout = new QHBoxLayout();
+        auto *sensorDataBtn = new QPushButton("Request sensor data");
+        connect(sensorDataBtn, &QPushButton::clicked, this, &SettingsDialog::reqSensorData);
+        sLayout->addWidget(sensorDataBtn);
+        form->addRow(sLayout);
         
         connect(this, &QDialog::accepted, [=, &sm]() {
             if ((freqSpin->value() != oldFreq) || (pollSpin->value() != oldPoll)) {
@@ -135,11 +141,17 @@ SettingsDialog::SettingsDialog(const QString& tabName, QWidget *parent) : QDialo
         int oldId = sm.get("sensor_deviceId").toInt();
         idSpin->setValue(oldId);
 
-        auto *chFaraday = new QSpinBox();
-        chFaraday->setDisplayIntegerBase(16);
-        chFaraday->setPrefix("0x");
-        chFaraday->setRange(0, 255);
-        chFaraday->setValue(sm.get("sensor_chanFaraday").toInt());
+        auto *chFaraday1 = new QSpinBox();
+        chFaraday1->setDisplayIntegerBase(16);
+        chFaraday1->setPrefix("0x");
+        chFaraday1->setRange(0, 255);
+        chFaraday1->setValue(sm.get("sensor_chanFaraday1").toInt());
+
+        auto *chFaraday2 = new QSpinBox();
+        chFaraday2->setDisplayIntegerBase(16);
+        chFaraday2->setPrefix("0x");
+        chFaraday2->setRange(0, 255);
+        chFaraday2->setValue(sm.get("sensor_chanFaraday2").toInt());
 
         auto *chHall = new QSpinBox();
         chHall->setDisplayIntegerBase(16);
@@ -154,12 +166,14 @@ SettingsDialog::SettingsDialog(const QString& tabName, QWidget *parent) : QDialo
         chVacuum->setValue(sm.get("sensor_chanVacuum").toInt());
 
         form->addRow("Device ID (CAC208):", idSpin);
-        form->addRow("Канал: Цилиндр Фарадея:", chFaraday);
+        form->addRow("Канал: Цилиндр Фарадея 1:", chFaraday1);
+        form->addRow("Канал: Цилиндр Фарадея 2:", chFaraday2);
         form->addRow("Канал: Датчик Холла:", chHall);
         form->addRow("Канал: Давление (ВМБ-14):", chVacuum);
 
         connect(this, &QDialog::accepted, [=, &sm]() {
-            sm.set("sensor_chanFaraday", chFaraday->value());
+            sm.set("sensor_chanFaraday1", chFaraday1->value());
+            sm.set("sensor_chanFaraday2", chFaraday2->value());
             sm.set("sensor_chanHall", chHall->value());
             sm.set("sensor_chanVacuum", chVacuum->value());
             if (idSpin->value() != oldId) {

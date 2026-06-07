@@ -50,7 +50,8 @@ private:
     QPushButton *coolSettingsBtn;
     QPushButton *measSettingsBtn;
     QPushButton *logSettingsBtn;
-    QLabel *faradayLabel;
+    QLabel *faraday1Label;
+    QLabel *faraday2Label;
     QLabel *hallLabel;
     QLabel *vacuumVoltLabel;
     QLabel *vacuumPressLabel;

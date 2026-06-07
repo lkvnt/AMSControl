@@ -89,6 +89,7 @@ void MainWindow::setupUI() {
         connect(&dlg, &SettingsDialog::reqSetCurrent, systemManager, &SystemManager::manualSetCurrent);
         connect(&dlg, &SettingsDialog::reqCoolingOn, systemManager, &SystemManager::manualCoolingOn);
         connect(&dlg, &SettingsDialog::reqCoolingOff, systemManager, &SystemManager::manualCoolingOff);
+        connect(&dlg, &SettingsDialog::reqSensorData, systemManager, &SystemManager::manualRequestSensorData);
 
         dlg.exec();
     });
@@ -232,10 +233,13 @@ void MainWindow::setupUI() {
         SettingsDialog dlg("Измерения", this);
         dlg.exec();
     });
-    faradayLabel = new QLabel("Цилиндр Фарадея: -- В");
-    faradayLabel->setStyleSheet("font-size: 16px; margin: 5px;");
-    sHelpLayout->addWidget(faradayLabel);
+    faraday1Label = new QLabel("Цилиндр Фарадея 1: -- В");
+    faraday1Label->setStyleSheet("font-size: 16px; margin: 5px;");
+    sHelpLayout->addWidget(faraday1Label);
     sHelpLayout->addWidget(measSettingsBtn);
+
+    faraday2Label = new QLabel("Цилиндр Фарадея 2: -- В");
+    faraday2Label->setStyleSheet("font-size: 16px; margin: 5px;");
 
     hallLabel = new QLabel("Датчик Холла: -- мВ");
     hallLabel->setStyleSheet("font-size: 16px; margin: 5px;");
@@ -247,6 +251,7 @@ void MainWindow::setupUI() {
     vacuumPressLabel->setStyleSheet("font-size: 16px; margin: 5px;");
 
     sLayout->addLayout(sHelpLayout);
+    sLayout->addWidget(faraday2Label);
     sLayout->addWidget(hallLabel);
     sLayout->addWidget(vacuumVoltLabel);
     sLayout->addWidget(vacuumPressLabel);
@@ -431,7 +436,8 @@ void MainWindow::onTimerTick() {
     
     updateLamps(systemManager->getStatusFlags());
 
-    faradayLabel->setText(QString("Цилиндр Фарадея: \t %1 В").arg(systemManager->getFaraday(), 0, 'f', 4));
+    faraday1Label->setText(QString("Цилиндр Фарадея: \t %1 В").arg(systemManager->getFaraday1(), 0, 'f', 4));
+    faraday2Label->setText(QString("Цилиндр Фарадея 2: \t %1 В").arg(systemManager->getFaraday2(), 0, 'f', 4));
 
     hallLabel->setText(QString("Датчик Холла: \t\t %1 мВ").arg(systemManager->getHall() * 1000.0f, 0, 'f', 2));
     

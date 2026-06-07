@@ -16,6 +16,7 @@ signals:
     void reqSetCurrent(float current);
     void reqCoolingOn();
     void reqCoolingOff();
+    void reqSensorData();
 };
 
 #endif // SETTINGSDIALOG_H
