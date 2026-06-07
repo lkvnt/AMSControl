@@ -63,7 +63,8 @@ DataViewerWindow::DataViewerWindow(const QString& filePath, QWidget *parent)
         "Температура (CoolControl)", 
         "Поток (CoolControl)", 
         "Датчик Холла (SensorControl)", 
-        "Цилиндр Фарадея (SensorControl)", 
+        "Цилиндр Фарадея 1 (SensorControl)", 
+        "Цилиндр Фарадея 2 (SensorControl)", 
         "Давление/Вакуум (SensorControl)"
     });
     connect(m_metricCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &DataViewerWindow::onMetricChanged);
@@ -138,7 +139,8 @@ void DataViewerWindow::loadAndShowData(const QString& filePath) {
                 rec.flow       = tokens.size() > 3 ? parseOptional(tokens[3]) : std::nullopt;
                 rec.hall       = tokens.size() > 4 ? parseOptional(tokens[4]) : std::nullopt;
                 rec.ioncurrent = tokens.size() > 5 ? parseOptional(tokens[5]) : std::nullopt;
-                rec.pressure   = tokens.size() > 6 ? parseOptional(tokens[6]) : std::nullopt;
+                rec.iondetect  = tokens.size() > 6 ? parseOptional(tokens[6]) : std::nullopt;
+                rec.pressure   = tokens.size() > 7 ? parseOptional(tokens[7]) : std::nullopt;
 
                 parsedRecords.append(rec);
             }
@@ -228,7 +230,8 @@ void DataViewerWindow::updateChart() {
             case 2: optY = rec.flow; break;
             case 3: optY = rec.hall; break;
             case 4: optY = rec.ioncurrent; break;
-            case 5: optY = rec.pressure; break;
+            case 5: optY = rec.iondetect; break;
+            case 6: optY = rec.pressure; break;
         }
 
         if (!optY.has_value()) {

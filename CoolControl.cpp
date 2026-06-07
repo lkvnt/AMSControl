@@ -76,7 +76,10 @@ void CoolingController::requestConnection() {
 }
 
 void CoolingController::requestDataFlow() {
-    if (!can) return;
+    if (!can) {
+        emit logMessage("CoolControl: Warning! CAN is not initialized.");
+        return;
+    }
     can->sendCommand(getTargetId(), {Command::START_MEASURE});
 }
 

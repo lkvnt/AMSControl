@@ -14,7 +14,7 @@ enum Command {
 };
 
 SensorController::SensorController(QObject* parent) 
-    : QObject(parent), can(nullptr), faraday_v(0), hall_v(0), vacuum_v(0) {
+    : QObject(parent), can(nullptr), faraday1_v(0), faraday2_v(0), hall_v(0), vacuum_v(0) {
         dev_id = SettingsManager::instance().get("sensor_deviceId").toInt();
     }
 
@@ -28,15 +28,19 @@ void SensorController::setCanInterface(CanBusManager* can_interface) {
 }
 
 void SensorController::requestDataFlow() {
-    if (!can) return;
+    if (!can) {
+        emit logMessage("SensorControl: Warning! CAN is not initialized.");
+        return;
+    }
     
     SettingsManager &sm = SettingsManager::instance();
     uint8_t chHall = sm.get("sensor_chanHall").toInt();
-    uint8_t chFaraday = sm.get("sensor_chanFaraday").toInt();
+    uint8_t chFaraday1 = sm.get("sensor_chanFaraday1").toInt();
+    uint8_t chFaraday2 = sm.get("sensor_chanFaraday2").toInt();
     uint8_t chVacuum = sm.get("sensor_chanVacuum").toInt();
-    can->sendCommand(getTargetId(), Command::START_MEASURE, { std::min({chHall, chFaraday, chVacuum}),
-                                            std::max({chHall, chFaraday, chVacuum}),
-                                            0x07, 0x30, 0x00});
+    can->sendCommand(getTargetId(), Command::START_MEASURE, { std::min({chHall, chFaraday1, chFaraday2, chVacuum}),
+                                                              std::max({chHall, chFaraday1, chFaraday2, chVacuum}),
+                                                              0x07, 0x30, 0x00});
 }
 
 void SensorController::requestConnection() {
@@ -77,14 +81,18 @@ void SensorController::processADCData(const CAN_PACKET& rcv) {
         float voltage = (static_cast<int32_t>(adc_code) / static_cast<float>(0x3FFFFF)) * 10.0f;
 
         uint8_t chHall = sm.get("sensor_chanHall").toInt();
-        uint8_t chFaraday = sm.get("sensor_chanFaraday").toInt();
+        uint8_t chFaraday1 = sm.get("sensor_chanFaraday1").toInt();
+        uint8_t chFaraday2 = sm.get("sensor_chanFaraday2").toInt();
         uint8_t chVacuum = sm.get("sensor_chanVacuum").toInt();
 
         if (channel == chHall) {
             hall_v = voltage;
         } 
-        else if (channel == chFaraday) {
-            faraday_v = voltage;
+        else if (channel == chFaraday1) {
+            faraday1_v = voltage;
+        } 
+        else if (channel == chFaraday2) {
+            faraday2_v = voltage;
         } 
         else if (channel == chVacuum) {
             vacuum_v = voltage;

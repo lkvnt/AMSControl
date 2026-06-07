@@ -19,7 +19,8 @@ public:
 
     void processADCData(const CAN_PACKET& rcv);
 
-    float getFaradayVoltage() const { return faraday_v; }
+    float getFaraday1Voltage() const { return faraday1_v; }
+    float getFaraday2Voltage() const { return faraday2_v; }
     float getHallVoltage() const { return hall_v; }
     float getVacuumVoltage() const { return vacuum_v; }
     bool isResponded() const { return cacResponded; }
@@ -43,7 +44,8 @@ private:
     CanBusManager* can;
     uint8_t dev_id;
     
-    float faraday_v;
+    float faraday1_v;
+    float faraday2_v;
     float hall_v;
     float vacuum_v;
 

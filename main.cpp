@@ -15,7 +15,7 @@ int main(int argc, char *argv[])
     a.setApplicationVersion("1.0.0");
 
     auto txtLogger = std::make_unique<LoggerTXT>();
-    QStringList csvHeaders = {"timestamp", "current", "temp", "flow", "hall", "ioncurrent", "pressure"};
+    QStringList csvHeaders = {"timestamp", "current", "temp", "flow", "hall", "ioncurrent", "iondetect", "pressure"};
     auto csvLogger = std::make_unique<LoggerCSV>(csvHeaders);
     
     SystemManager manager(std::move(txtLogger), std::move(csvLogger));

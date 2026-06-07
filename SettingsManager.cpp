@@ -44,8 +44,9 @@ void SettingsManager::createDefault() {
     m_settings["cool_mockTemp"] = 24.5;
     m_settings["cool_deviceId"] = 0x3C;
     m_settings["sensor_deviceId"] = 0x3E;
-    m_settings["sensor_chanFaraday"] = 0x12;
+    m_settings["sensor_chanFaraday1"] = 0x10;
     m_settings["sensor_chanHall"] = 0x11;
+    m_settings["sensor_chanFaraday2"] = 0x12;
     m_settings["sensor_chanVacuum"] = 0x13;
     m_settings["log_intervalMs"] = 500;
     m_settings["can_bus_poll_timer"] = 10;

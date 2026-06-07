@@ -280,10 +280,70 @@ void SystemManager::onDataLogTimeout() {
     data["temp"]        = getTemp();
     data["flow"]        = getFlow();
     data["hall"]        = getHall();
-    data["ioncurrent"]  = getFaraday();
+    data["ioncurrent"]  = getFaraday1();
+    data["iondetect"] = getFaraday2();
     if (pressure.has_value()) {
         data["pressure"] = pressure.value();
     }
      
     emit requestTelemetryLog("Logs", fileName, data);
+}
+
+void SystemManager::manualPowerOn() { 
+    if (canBus.isOpen()) {
+        power.setPowerState(true); 
+        power.requestDataFlow(); 
+    } else {
+        emit logMessage("SystemManager: Warning! CAN is not initialized. Cannot turn on power.");
+    }
+}
+
+void SystemManager::manualPowerOff() { 
+    if (canBus.isOpen()) {
+        power.setCurrent(0); 
+        power.setPowerState(false);  
+    } else {
+        emit logMessage("SystemManager: Warning! CAN is not initialized. Cannot turn off power.");
+    }
+}
+
+void SystemManager::manualResetProt() { 
+    if (canBus.isOpen()) {
+        power.resetProtection();
+    } else {
+        emit logMessage("SystemManager: Warning! CAN is not initialized. Cannot reset protection.");
+    }
+}
+
+void SystemManager::manualSetCurrent(float amperes) {
+    if (canBus.isOpen()) {
+        setCurrent(amperes, true);
+    } else {
+        emit logMessage("SystemManager: Warning! CAN is not initialized. Cannot set current.");
+    }
+}
+
+void SystemManager::manualCoolingOn() {
+    if (canBus.isOpen()) {
+        cooling.setState(true);
+        cooling.requestDataFlow();
+    } else {
+        emit logMessage("SystemManager: Warning! CAN is not initialized. Cannot turn on cooling.");
+    }
+}
+
+void SystemManager::manualCoolingOff() {
+    if (canBus.isOpen()) {
+        cooling.setState(false);
+    } else {
+        emit logMessage("SystemManager: Warning! CAN is not initialized. Cannot turn off cooling.");
+    }
+}
+
+void SystemManager::manualRequestSensorData() {
+    if (canBus.isOpen()) {
+        sensors.requestDataFlow();
+    } else {
+        emit logMessage("SystemManager: Warning! CAN is not initialized. Cannot request sensor data.");
+    }
 }

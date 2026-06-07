@@ -19,6 +19,7 @@ struct TelemetryRecord {
     std::optional<double> flow;
     std::optional<double> hall;
     std::optional<double> ioncurrent;
+    std::optional<double> iondetect;
     std::optional<double> pressure;
 };
 

@@ -30,7 +30,8 @@ public:
     float getFlow() const { return cooling.getFlowRate(); }
     float getCurrent() const { return power.getCurrent(); }
     float getAdcVoltage() const { return power.getAdcVoltage(); }
-    float getFaraday() const { return sensors.getFaradayVoltage(); }
+    float getFaraday1() const { return sensors.getFaraday1Voltage(); }
+    float getFaraday2() const { return sensors.getFaraday2Voltage(); }
     float getHall() const { return sensors.getHallVoltage(); }
     float getVacuum() const { return sensors.getVacuumVoltage(); }
 
@@ -39,12 +40,13 @@ public:
     bool isBusy() const { return power.isDeviceBusy() || startup_step > 0; }
     uint8_t getStatusFlags() const { return power.getStatusFlags(); }
 
-    void manualPowerOn() { power.setPowerState(true); power.requestDataFlow(); }
-    void manualPowerOff() { power.setPowerState(false); power.setCurrent(0); }
-    void manualResetProt() { power.resetProtection(); }
-    void manualSetCurrent(float amperes) { setCurrent(amperes, true); }
-    void manualCoolingOn() { cooling.setState(true); cooling.requestDataFlow();}
-    void manualCoolingOff() { cooling.setState(false); }
+    void manualPowerOn();
+    void manualPowerOff();
+    void manualResetProt();
+    void manualSetCurrent(float amperes);
+    void manualCoolingOn();
+    void manualCoolingOff();
+    void manualRequestSensorData();
 
 signals:
     void logMessage(const QString& msg);

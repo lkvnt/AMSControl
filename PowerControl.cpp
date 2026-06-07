@@ -158,7 +158,10 @@ void PowerSupplyController::requestConnection() {
 }
 
 void PowerSupplyController::requestDataFlow() {
-    if (!can) return;
+    if (!can) {
+        emit logMessage("Power Control: Warning! CAN is not initialized.");
+        return;
+    }
     can->sendCommand(getTargetId(), Command::START_MEASURE, {0x00, 0x07, 0x30}); // {CHANNEL, PERIOD, ONCE=0x20/FLOW=0x30}
 }
 
