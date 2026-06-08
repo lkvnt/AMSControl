@@ -68,7 +68,8 @@ private slots:
     void onDataLogTimeout();
 
 private:
-    CanBusManager canBus;
+    CanBusManager *canBus;
+    QThread canThread;
     PowerSupplyController power;
     CoolingController cooling;
     SensorController sensors;

@@ -19,7 +19,12 @@ SystemManager::SystemManager(std::unique_ptr<Logger> eventLogger,
     connect(this, &SystemManager::requestTelemetryLog, logWorker, &LogWorker::onTelemetryLogRequested);
     logThread.start();
 
-    connect(&canBus, &CanBusManager::logMessage, this, &SystemManager::logMessage);
+    canBus = new CanBusManager();
+    canBus->moveToThread(&canThread);
+    connect(&canThread, &QThread::finished, canBus, &QObject::deleteLater);
+    canThread.start();
+
+    connect(canBus, &CanBusManager::logMessage, this, &SystemManager::logMessage);
     connect(&power, &PowerSupplyController::logMessage, this, &SystemManager::logMessage);
     connect(&cooling, &CoolingController::logMessage, this, &SystemManager::logMessage);
     connect(&sensors, &SensorController::logMessage, this, &SystemManager::logMessage);
@@ -50,26 +55,34 @@ SystemManager::~SystemManager() {
     sensors.stopDataFlow();
     cooling.stopDataFlow();
     stopSystem();
-    canBus.close();
+    
+    canThread.quit();
+    canThread.wait();
 }
 
 void SystemManager::initHardware() {
     emit logMessage("SystemManager: Objects created.");
+    bool initOk = false;
 
-    if (!canBus.init()) {
+    bool isInvoked = QMetaObject::invokeMethod(canBus, &CanBusManager::init, 
+                                               Qt::BlockingQueuedConnection,
+                                               qReturnArg(initOk), 0, 0);
+    if (!isInvoked) emit logMessage("SystemManager: Hardware initialization did not happen!");
+
+    if (!initOk) {
         emit logMessage("SystemManager: Warning! Could not open PCI-7841 driver. Check the device.");
     } else {
-        power.setCanInterface(&canBus);
-        sensors.setCanInterface(&canBus);
-        cooling.setCanInterface(&canBus);
-        emit logMessage("SystemManager: CAN-bus is ready."); 
+        power.setCanInterface(canBus);
+        sensors.setCanInterface(canBus);
+        cooling.setCanInterface(canBus);
+        emit logMessage("SystemManager: CAN-bus is ready.");
     }
 }
 
 void SystemManager::startSystem() {
     if (startup_step != 0 || is_running) return;
 
-    if (!canBus.isOpen()) {
+    if (!canBus->isOpen()) {
         emit logMessage("SystemManager: Warning! CAN is not initialized. Stopping.");
         return;
     }
@@ -181,7 +194,15 @@ void SystemManager::continueStartSystem(int step) {
 
 void SystemManager::stopSystem() {
     startup_step = 0;
-    if (!is_running && !canBus.isOpen()) return;
+    // if (!is_running && !canBus.isOpen()) return;
+    if (!is_running) {
+        emit logMessage("SystemManager: Trying to stop while already stop! Check the system manually!");
+        return;
+    }
+    if (!canBus->isOpen()) {
+        emit logMessage("SystemManager: Trying to stop with no CAN interface! Check the system manually!");
+        return;
+    }
     
     emit logMessage("SystemManager: Shutting down...");
 
@@ -193,7 +214,7 @@ void SystemManager::stopSystem() {
 }
 
 void SystemManager::update() {
-    if (!canBus.isOpen()) return;
+    if (!canBus->isOpen()) return;
 
     if (is_running) {
         if (!isPowerFresh(1000)) {
@@ -246,8 +267,8 @@ void SystemManager::setCurrent(float amperes) {
 
 void SystemManager::onLogMessageReceived(const QString& formattedMsg) {
     QString fileName = "Log-" + QDateTime::currentDateTime().toString("dd-MM-yyyy");
-    
-    emit requestEventLog("Logs", fileName, formattedMsg);
+    QString fullMsg = "[" + QDateTime::currentDateTime().toString("hh:mm:ss.zzz") + "] " + formattedMsg;
+    emit requestEventLog("Logs", fileName, fullMsg);
 }
 
 void SystemManager::onDataLogTimeout() {
@@ -281,7 +302,7 @@ QString SystemManager::formateVacuumValue(std::optional<double> value) const {
 }
 
 void SystemManager::manualPowerOn() { 
-    if (canBus.isOpen()) {
+    if (canBus->isOpen()) {
         power.setPowerState(true); 
         power.requestDataFlow(); 
     } else {
@@ -290,7 +311,7 @@ void SystemManager::manualPowerOn() {
 }
 
 void SystemManager::manualPowerOff() { 
-    if (canBus.isOpen()) {
+    if (canBus->isOpen()) {
         power.setCurrent(0); 
         power.setPowerState(false);  
     } else {
@@ -299,7 +320,7 @@ void SystemManager::manualPowerOff() {
 }
 
 void SystemManager::manualResetProt() { 
-    if (canBus.isOpen()) {
+    if (canBus->isOpen()) {
         power.resetProtection();
     } else {
         emit logMessage("SystemManager: Warning! CAN is not initialized. Cannot reset protection.");
@@ -307,7 +328,7 @@ void SystemManager::manualResetProt() {
 }
 
 void SystemManager::manualSetCurrent(float amperes) {
-    if (canBus.isOpen()) {
+    if (canBus->isOpen()) {
         power.setCurrent(amperes);
     } else {
         emit logMessage("SystemManager: Warning! CAN is not initialized. Cannot set current.");
@@ -315,7 +336,7 @@ void SystemManager::manualSetCurrent(float amperes) {
 }
 
 void SystemManager::manualCoolingOn() {
-    if (canBus.isOpen()) {
+    if (canBus->isOpen()) {
         cooling.setState(true);
         cooling.requestDataFlow();
     } else {
@@ -324,7 +345,7 @@ void SystemManager::manualCoolingOn() {
 }
 
 void SystemManager::manualCoolingOff() {
-    if (canBus.isOpen()) {
+    if (canBus->isOpen()) {
         cooling.setState(false);
     } else {
         emit logMessage("SystemManager: Warning! CAN is not initialized. Cannot turn off cooling.");
@@ -332,7 +353,7 @@ void SystemManager::manualCoolingOff() {
 }
 
 void SystemManager::manualRequestSensorData() {
-    if (canBus.isOpen()) {
+    if (canBus->isOpen()) {
         sensors.requestDataFlow();
     } else {
         emit logMessage("SystemManager: Warning! CAN is not initialized. Cannot request sensor data.");
