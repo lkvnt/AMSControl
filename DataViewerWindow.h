@@ -11,6 +11,8 @@
 #include <QPushButton>
 #include <QPointer>
 #include <QThread>
+#include <QTimer>
+#include <QLabel>
 
 struct TelemetryRecord {
     qint64 time;
@@ -40,6 +42,10 @@ private:
     void loadAndShowData(const QString& filePath);
     void updateChart();
     void showCustomTooltip(const QPointF& mousePixelPos);
+
+    QPoint m_lastMousePos;
+    QLabel* m_tooltipWidget = nullptr;
+    QTimer* m_tooltipTimer = nullptr;
 
     QString m_filePath;
     QVector<TelemetryRecord> m_dataRecords;

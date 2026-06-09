@@ -20,6 +20,7 @@ public:
 protected:
     void mousePressEvent(QMouseEvent *event) override {
         if (event->button() == Qt::RightButton) {
+            chart()->setAnimationOptions(QChart::NoAnimation);
             m_isPanning = true;
             m_lastMousePos = event->pos();
             setCursor(Qt::ClosedHandCursor);
@@ -40,8 +41,11 @@ protected:
         if (event->button() == Qt::RightButton) {
             m_isPanning = false;
             setCursor(Qt::ArrowCursor);
+            chart()->setAnimationOptions(QChart::SeriesAnimations);
+            
+        } else {
+            QChartView::mouseReleaseEvent(event);
         }
-        QChartView::mouseReleaseEvent(event);
     }
 };
 
@@ -53,6 +57,12 @@ DataViewerWindow::DataViewerWindow(const QString& filePath, QWidget *parent)
     resize(1000, 700);
 
     cancelFlag = std::make_shared<std::atomic<bool>>(false);
+
+    m_tooltipTimer = new QTimer(this);
+    m_tooltipTimer->setSingleShot(true);
+    connect(m_tooltipTimer, &QTimer::timeout, this, [this]() {
+        showCustomTooltip(m_lastMousePos);
+    });
 
     auto *centralWidget = new QWidget(this);
     auto *mainLayout = new QVBoxLayout(centralWidget);
@@ -102,6 +112,8 @@ DataViewerWindow::DataViewerWindow(const QString& filePath, QWidget *parent)
     m_chart->legend()->hide();
 
     m_chart->setCacheMode(QChart::DeviceCoordinateCache);
+    m_chart->setAnimationOptions(QChart::SeriesAnimations);
+    m_chart->setAnimationDuration(100);
 
     m_axisX = nullptr;
     m_axisY = nullptr;
@@ -111,6 +123,13 @@ DataViewerWindow::DataViewerWindow(const QString& filePath, QWidget *parent)
 
     m_chartView->viewport()->installEventFilter(this);
     m_chartView->setMouseTracking(true);
+
+    m_tooltipWidget = new QLabel(m_chartView);
+    m_tooltipWidget->setStyleSheet("QLabel { background-color: #f0f0f0; border: 1px solid #303030; border-radius: 4px; padding: 6px; color: black; }");
+    m_tooltipWidget->setWindowFlags(Qt::ToolTip | Qt::FramelessWindowHint | Qt::WindowDoesNotAcceptFocus);
+    m_tooltipWidget->setAttribute(Qt::WA_ShowWithoutActivating);
+    m_tooltipWidget->setAttribute(Qt::WA_TransparentForMouseEvents);
+    m_tooltipWidget->hide();
 
     mainLayout->addWidget(m_chartView);
     setCentralWidget(centralWidget);
@@ -239,7 +258,7 @@ void DataViewerWindow::updateChart() {
             if (currentSegment.isEmpty()) return;
             QLineSeries* series = new QLineSeries();
             series->setColor(color);
-            series->setUseOpenGL(true);
+            // series->setUseOpenGL(true);
             series->replace(currentSegment);
             outData.seriesList.append(series);
             currentSegment.clear();
@@ -357,9 +376,19 @@ void DataViewerWindow::resetZoom() {
 }
 
 bool DataViewerWindow::eventFilter(QObject *watched, QEvent *event) {
-    if (watched == m_chartView->viewport() && event->type() == QEvent::MouseMove) {
-        QMouseEvent *mouseEvent = static_cast<QMouseEvent*>(event);
-        showCustomTooltip(mouseEvent->pos());
+    if (watched == m_chartView->viewport()) {
+        
+        if (event->type() == QEvent::MouseMove) {
+            QMouseEvent *mouseEvent = static_cast<QMouseEvent*>(event);
+            if (mouseEvent->pos() == m_lastMousePos) return QMainWindow::eventFilter(watched, event);
+            m_lastMousePos = mouseEvent->pos();
+            m_tooltipWidget->hide();
+            m_tooltipTimer->start(100);
+        } 
+        else if (event->type() == QEvent::Leave) {
+            m_tooltipTimer->stop();
+            m_tooltipWidget->hide();
+        }
     }
     return QMainWindow::eventFilter(watched, event);
 }
@@ -414,6 +443,22 @@ void DataViewerWindow::showCustomTooltip(const QPointF& mousePixelPos) {
                     .arg(dt.toString("HH:mm:ss.zzz"))
                     .arg(pt2.y(), 0, 'f', 4);
         }
-        QToolTip::showText(QCursor::pos(), text, m_chartView);
+
+        m_tooltipWidget->setText(text);
+        m_tooltipWidget->adjustSize();
+        
+        int x = m_lastMousePos.x() + 15;
+        int y = m_lastMousePos.y() + 15;
+        
+        if (x + m_tooltipWidget->width() > m_chartView->viewport()->width()) {
+            x = m_lastMousePos.x() - m_tooltipWidget->width() - 5;
+        }
+        if (y + m_tooltipWidget->height() > m_chartView->viewport()->height()) {
+            y = m_lastMousePos.y() - m_tooltipWidget->height() - 5;
+        }
+        
+        QPoint globalPos = m_chartView->viewport()->mapToGlobal(QPoint(x, y));
+        m_tooltipWidget->move(globalPos);
+        m_tooltipWidget->show();
     }
 }
