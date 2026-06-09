@@ -13,6 +13,7 @@
 #include <QThread>
 #include <QTimer>
 #include <QLabel>
+#include <QGraphicsLineItem>
 
 struct TelemetryRecord {
     qint64 time;
@@ -41,11 +42,18 @@ private slots:
 private:
     void loadAndShowData(const QString& filePath);
     void updateChart();
+    qreal findClosest(const QVector<QPointF>& pts, const QPointF& mousePixelPos, 
+                               QAbstractSeries* series, QPointF& outPt, QPointF& outPix);
     void showCustomTooltip(const QPointF& mousePixelPos);
 
     QPoint m_lastMousePos;
     QLabel* m_tooltipWidget = nullptr;
     QTimer* m_tooltipTimer = nullptr;
+
+    QGraphicsLineItem* m_lineH1 = nullptr;
+    QGraphicsLineItem* m_lineV1 = nullptr;
+    QGraphicsLineItem* m_lineH2 = nullptr;
+    QGraphicsLineItem* m_lineV2 = nullptr;
 
     QString m_filePath;
     QVector<TelemetryRecord> m_dataRecords;

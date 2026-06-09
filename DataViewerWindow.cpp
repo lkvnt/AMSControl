@@ -131,6 +131,22 @@ DataViewerWindow::DataViewerWindow(const QString& filePath, QWidget *parent)
     m_tooltipWidget->setAttribute(Qt::WA_TransparentForMouseEvents);
     m_tooltipWidget->hide();
 
+    m_lineH1 = new QGraphicsLineItem(m_chart);
+    m_lineV1 = new QGraphicsLineItem(m_chart);
+    m_lineH2 = new QGraphicsLineItem(m_chart);
+    m_lineV2 = new QGraphicsLineItem(m_chart);
+
+    QPen pen1(QColor("#88c0ee"), 1, Qt::DashLine);
+    m_lineH1->setPen(pen1); m_lineV1->setPen(pen1);
+    m_lineH1->setZValue(11); m_lineV1->setZValue(11);
+
+    QPen pen2(QColor("#ee908a"), 1, Qt::DashLine);
+    m_lineH2->setPen(pen2); m_lineV2->setPen(pen2);
+    m_lineH2->setZValue(11); m_lineV2->setZValue(11);
+
+    m_lineH1->hide(); m_lineV1->hide();
+    m_lineH2->hide(); m_lineV2->hide();
+
     mainLayout->addWidget(m_chartView);
     setCentralWidget(centralWidget);
 
@@ -382,66 +398,159 @@ bool DataViewerWindow::eventFilter(QObject *watched, QEvent *event) {
             QMouseEvent *mouseEvent = static_cast<QMouseEvent*>(event);
             if (mouseEvent->pos() == m_lastMousePos) return QMainWindow::eventFilter(watched, event);
             m_lastMousePos = mouseEvent->pos();
+
             m_tooltipWidget->hide();
+            m_lineH1->hide(); m_lineV1->hide();
+            m_lineH2->hide(); m_lineV2->hide();
+
             m_tooltipTimer->start(100);
         } 
         else if (event->type() == QEvent::Leave) {
             m_tooltipTimer->stop();
+
             m_tooltipWidget->hide();
+            m_lineH1->hide(); m_lineV1->hide();
+            m_lineH2->hide(); m_lineV2->hide();
         }
     }
     return QMainWindow::eventFilter(watched, event);
 }
 
-void DataViewerWindow::showCustomTooltip(const QPointF& mousePixelPos) {
-    qreal targetX = 0;
-    if (m_seriesMetric1) {
-        targetX = m_chart->mapToValue(mousePixelPos, m_seriesMetric1).x();
-    } else if (m_seriesMetric2) {
-        targetX = m_chart->mapToValue(mousePixelPos, m_seriesMetric2).x();
-    } else {
-        return;
+qreal DataViewerWindow::findClosest(const QVector<QPointF>& pts, const QPointF& mousePixelPos, 
+                               QAbstractSeries* series, QPointF& outPt, QPointF& outPix) {
+    if (pts.isEmpty() || !series) return std::numeric_limits<qreal>::max();
+    if (pts.size() < 2) {
+            outPt = pts.first();
+            outPix = m_chart->mapToPosition(outPt, series);
+            return std::sqrt(std::pow(outPix.x() - mousePixelPos.x(), 2) + std::pow(outPix.y() - mousePixelPos.y(), 2));
     }
+    
+    QPointF targetVal = m_chart->mapToValue(mousePixelPos, series);
+    qreal targetX = targetVal.x();
+    qreal targetY = targetVal.y();
 
-    auto findClosest = [&](const QVector<QPointF>& pts, QAbstractSeries* series, QPointF& outPt, QPointF& outPix) -> qreal {
-        if (pts.isEmpty() || !series) return std::numeric_limits<qreal>::max();
-        
-        auto it = std::lower_bound(pts.begin(), pts.end(), targetX,
-                                   [](const QPointF& p, qreal x) { return p.x() < x; });
+    QPointF valLeft = m_chart->mapToValue(mousePixelPos - QPointF(100, 0), series);
+    QPointF valRight = m_chart->mapToValue(mousePixelPos + QPointF(100, 0), series);
+    qreal searchMinX = std::min(valLeft.x(), valRight.x());
+    qreal searchMaxX = std::max(valLeft.x(), valRight.x());
 
-        if (it == pts.end()) outPt = pts.last();
-        else if (it == pts.begin()) outPt = pts.first();
-        else {
-            QPointF p1 = *(it - 1);
-            QPointF p2 = *it;
-            outPt = (std::abs(p1.x() - targetX) < std::abs(p2.x() - targetX)) ? p1 : p2;
+    auto itStart = std::lower_bound(pts.begin(), pts.end(), searchMinX, [](const QPointF& p, qreal x) { return p.x() < x; });
+    auto itEnd = std::lower_bound(pts.begin(), pts.end(), searchMaxX, [](const QPointF& p, qreal x) { return p.x() < x; });
+
+    int startIndex = std::distance(pts.begin(), itStart);
+    int endIndex = std::distance(pts.begin(), itEnd);
+
+    auto itCenter = std::lower_bound(pts.begin(), pts.end(), targetX, [](const QPointF& p, qreal x) { return p.x() < x; });
+    int centerIdx = std::distance(pts.begin(), itCenter);
+
+    startIndex = std::min(startIndex, std::max(1, centerIdx - 50));
+    endIndex = std::max(endIndex, std::min(static_cast<int>(pts.size() - 1), centerIdx + 50));
+
+    startIndex = std::max(1, startIndex - 1);
+    endIndex = std::min(static_cast<int>(pts.size() - 1), endIndex + 1);
+
+    qreal minDist = std::numeric_limits<qreal>::max();
+    QPointF bestPt;
+    QPointF bestPix;
+    
+    for (int i = startIndex; i <= endIndex; ++i) {
+        QPointF p1 = pts[i - 1];
+        QPointF p2 = pts[i];
+
+        if ((p2.x() - p1.x()) > 10000 || p2.x() == p1.x()) {
+            QPointF pix1 = m_chart->mapToPosition(p1, series);
+            qreal d1 = std::sqrt(std::pow(pix1.x() - mousePixelPos.x(), 2) + std::pow(pix1.y() - mousePixelPos.y(), 2));
+            if (d1 < minDist) { minDist = d1; bestPt = p1; bestPix = pix1; }
+
+            QPointF pix2 = m_chart->mapToPosition(p2, series);
+            qreal d2 = std::sqrt(std::pow(pix2.x() - mousePixelPos.x(), 2) + std::pow(pix2.y() - mousePixelPos.y(), 2));
+            if (d2 < minDist) { minDist = d2; bestPt = p2; bestPix = pix2; }
+            continue;
         }
 
-        outPix = m_chart->mapToPosition(outPt, series);
+        if (targetX >= p1.x() && targetX <= p2.x()) {
+            qreal ratioX = (targetX - p1.x()) / (p2.x() - p1.x());
+            qreal interpY = p1.y() + ratioX * (p2.y() - p1.y());
+            QPointF ptVert(targetX, interpY);
+            QPointF pixVert = m_chart->mapToPosition(ptVert, series);
+            
+            qreal distVert = std::sqrt(std::pow(pixVert.x() - mousePixelPos.x(), 2) + std::pow(pixVert.y() - mousePixelPos.y(), 2));
+            if (distVert < minDist) {
+                minDist = distVert; bestPt = ptVert; bestPix = pixVert;
+            }
+        }
 
-        return std::sqrt(std::pow(outPix.x() - mousePixelPos.x(), 2) + std::pow(outPix.y() - mousePixelPos.y(), 2));
-    };
+        qreal minY = std::min(p1.y(), p2.y());
+        qreal maxY = std::max(p1.y(), p2.y());
+        if (targetY >= minY && targetY <= maxY && p1.y() != p2.y()) {
+            qreal ratioY = (targetY - p1.y()) / (p2.y() - p1.y());
+            qreal interpX = p1.x() + ratioY * (p2.x() - p1.x());
+            QPointF ptHoriz(interpX, targetY);
+            QPointF pixHoriz = m_chart->mapToPosition(ptHoriz, series);
+            
+            qreal distHoriz = std::sqrt(std::pow(pixHoriz.x() - mousePixelPos.x(), 2) + std::pow(pixHoriz.y() - mousePixelPos.y(), 2));
+            if (distHoriz < minDist) {
+                minDist = distHoriz; bestPt = ptHoriz; bestPix = pixHoriz;
+            }
+        }
 
+        QPointF pix1 = m_chart->mapToPosition(p1, series);
+        qreal d1 = std::sqrt(std::pow(pix1.x() - mousePixelPos.x(), 2) + std::pow(pix1.y() - mousePixelPos.y(), 2));
+        if (d1 < minDist) { minDist = d1; bestPt = p1; bestPix = pix1; }
+
+        QPointF pix2 = m_chart->mapToPosition(p2, series);
+        qreal d2 = std::sqrt(std::pow(pix2.x() - mousePixelPos.x(), 2) + std::pow(pix2.y() - mousePixelPos.y(), 2));
+        if (d2 < minDist) { minDist = d2; bestPt = p2; bestPix = pix2; }
+    }
+    if (minDist == std::numeric_limits<qreal>::max()) return minDist;
+    outPt = bestPt;
+    outPix = bestPix;
+    return minDist;
+}
+
+void DataViewerWindow::showCustomTooltip(const QPointF& mousePixelPos) {
     QPointF pt1, pix1, pt2, pix2;
-    qreal dist1 = findClosest(m_currentPoints1, m_seriesMetric1, pt1, pix1);
-    qreal dist2 = findClosest(m_currentPoints2, m_seriesMetric2, pt2, pix2);
+    qreal dist1 = findClosest(m_currentPoints1, mousePixelPos, m_seriesMetric1, pt1, pix1);
+    qreal dist2 = findClosest(m_currentPoints2, mousePixelPos, m_seriesMetric2, pt2, pix2);
     
     if (dist1 > 30 && dist2 > 30) {
-        QToolTip::hideText();
+        m_tooltipWidget->hide();
+        m_lineH1->hide(); m_lineV1->hide();
+        m_lineH2->hide(); m_lineV2->hide();
         return;
     } else {
         QString text = "";
-        QDateTime dt = QDateTime::fromMSecsSinceEpoch(static_cast<qint64>(pt1.x()));
+        QRectF plotArea = m_chart->plotArea();
+
         if (dist1 < 30) {
+            QDateTime dt = QDateTime::fromMSecsSinceEpoch(static_cast<qint64>(pt1.x()));
             text += QString("<b style='color:#2196F3;'>Синий график</b><br>Время: %1<br>Значение: %2")
                     .arg(dt.toString("HH:mm:ss.zzz"))
                     .arg(pt1.y(), 0, 'f', 4);
+
+            m_lineV1->setLine(pix1.x(), pix1.y(), pix1.x(), plotArea.bottom());
+            m_lineH1->setLine(plotArea.left(), pix1.y(), pix1.x(), pix1.y());
+            m_lineV1->show();
+            m_lineH1->show();
+        } else {
+            m_lineV1->hide();
+            m_lineH1->hide();
         }
+
         if (dist2 < 30) {
+            QDateTime dt = QDateTime::fromMSecsSinceEpoch(static_cast<qint64>(pt2.x()));
             if (text != "") text += "<br>";
             text += QString("<b style='color:#F44336;'>Красный график</b><br>Время: %1<br>Значение: %2")
                     .arg(dt.toString("HH:mm:ss.zzz"))
                     .arg(pt2.y(), 0, 'f', 4);
+            
+            m_lineV2->setLine(pix2.x(), pix2.y(), pix2.x(), plotArea.bottom());
+            m_lineH2->setLine(pix2.x(), pix2.y(), plotArea.right(), pix2.y());
+            m_lineV2->show();
+            m_lineH2->show();
+        } else {
+            m_lineV2->hide();
+            m_lineH2->hide();
         }
 
         m_tooltipWidget->setText(text);
