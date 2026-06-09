@@ -35,6 +35,9 @@ public:
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
 
+public:
+    void applyTheme();
+
 private slots:
     void onMetricChanged(int index);
     void resetZoom();
@@ -49,6 +52,8 @@ private:
     QPoint m_lastMousePos;
     QLabel* m_tooltipWidget = nullptr;
     QTimer* m_tooltipTimer = nullptr;
+    QLabel* m_label1 = nullptr;
+    QLabel* m_label2 = nullptr;
 
     QGraphicsLineItem* m_lineH1 = nullptr;
     QGraphicsLineItem* m_lineV1 = nullptr;

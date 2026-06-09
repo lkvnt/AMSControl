@@ -7,11 +7,13 @@
 #include <QDesktopServices>
 #include <QUrl>
 #include <QGroupBox>
+#include <QScrollArea>
 #include "Manager.h"
 #include "DataViewerWindow.h"
 #include "QtUI.h"
 #include "SettingsDialog.h"
 #include "SettingsManager.h"
+#include "Theme.h"
 
 MainWindow::MainWindow(SystemManager *manager, QWidget *parent)
     : QMainWindow(parent), systemManager(manager), time_axis(0.0f)
@@ -38,47 +40,35 @@ MainWindow::MainWindow(SystemManager *manager, QWidget *parent)
 }
 
 void MainWindow::setupUI() {
+    this->setStyleSheet(Theme::getAppStylesheet());
+
     auto *centralWidget = new QWidget(this);
     auto *mainLayout = new QVBoxLayout(centralWidget);
+    mainLayout->setContentsMargins(15, 15, 15, 15);
+    mainLayout->setSpacing(12);
 
     auto *ctrlLayout = new QHBoxLayout();
 
-    QString baseButtonStyle = 
-        "QPushButton {"
-        "  border: 1px solid #555;"
-        "  border-radius: 5px;"
-        "  padding: 5px;"
-        "  background-color: #444;"
-        "  color: white;"
-        "}"
-        "QPushButton:hover:enabled {"
-        "  background-color: #5a5a5a;"
-        "  border: 1px solid #888;"
-        "}"
-        "QPushButton:pressed {"
-        "  background-color: #1a1a1a;"
-        "  padding-left: 7px; padding-top: 7px;"
-        "  border: 1px solid #333;"
-        "}"
-        "QPushButton:disabled {"
-        "  background-color: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #333, stop:0.5 #444, stop:1 #333);"
-        "  color: #777;"
-        "  border: 1px dashed #555;"
-        "}";
+    QString themeName = SettingsManager::instance().get("theme", "dark").toString();
+    bool isDark = (themeName == "dark");
 
+    QString baseButtonStyle = "";
 
     startBtn = new QPushButton("ЗАПУСК СИСТЕМЫ");
     startBtn->setStyleSheet(baseButtonStyle + 
-        "QPushButton:enabled { background-color: #2e8b57; font-weight: bold; height: 35px; } "
-        "QPushButton:hover:enabled { background-color: #3cb371; border: 1px solid #fff; }");
+        QString("QPushButton:enabled { background-color: %1; color: white; height: 35px; border: none; } "
+                "QPushButton:hover:enabled { background-color: %2; }")
+        .arg(isDark ? "#2E7D32" : "#388E3C")
+        .arg(isDark ? "#4CAF50" : "#66BB6A"));
     
     stopBtn = new QPushButton("СТОП СИСТЕМЫ");
     stopBtn->setStyleSheet(baseButtonStyle + 
-        "QPushButton:enabled { background-color: #d2691e; font-weight: bold; height: 35px; } "
-        "QPushButton:hover:enabled { background-color: #e67e22; border: 1px solid #fff; }");
+        QString("QPushButton:enabled { background-color: %1; color: white; height: 35px; border: none; } "
+                "QPushButton:hover:enabled { background-color: %2; }")
+        .arg(isDark ? "#C62828" : "#D32F2F")
+        .arg(isDark ? "#F44336" : "#E57373"));
 
-    mainSettingsBtn = new QPushButton("⚙");
-    mainSettingsBtn->setFixedSize(30, 30);
+    mainSettingsBtn = new QPushButton("Настройки");
     mainSettingsBtn->setStyleSheet(baseButtonStyle);
     connect(mainSettingsBtn, &QPushButton::clicked, [this]() {
         SettingsDialog dlg("Главная", this);
@@ -103,15 +93,14 @@ void MainWindow::setupUI() {
     mainLayout->addLayout(ctrlLayout);
 
 
-    QGroupBox *globalInfoBox = new QGroupBox("Основная информация системы");
-    globalInfoBox->setStyleSheet("QGroupBox { font-weight: bold; border: 1px solid #555; margin-top: 10px; } QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 3px; }");
+    QGroupBox *globalInfoBox = new QGroupBox();
     auto *gLayout = new QHBoxLayout(globalInfoBox);
     
     globalCurrent = new QLabel("Ток: -- А");
-    globalCurrent->setStyleSheet("font-size: 18px; font-weight: bold; color: #4CAF50;");
+    globalCurrent->setStyleSheet(QString("font-size: 18px; font-weight: bold; color: %1;").arg(isDark ? "#4CAF50" : "#1E8449"));
     
     globalTemp = new QLabel("Темп: -- °C");
-    globalTemp->setStyleSheet("font-size: 18px; font-weight: bold; color: #2196F3;");
+    globalTemp->setStyleSheet(QString("font-size: 18px; font-weight: bold; color: %1;").arg(isDark ? "#2196F3" : "#2980B9"));
     
     globalPowerLed = new QLabel("ПИТАНИЕ");
     globalPowerLed->setAlignment(Qt::AlignCenter);
@@ -132,6 +121,8 @@ void MainWindow::setupUI() {
 
     auto *powerTab = new QWidget();
     auto *pLayout = new QVBoxLayout(powerTab);
+    pLayout->setContentsMargins(15, 15, 15, 15);
+    pLayout->setSpacing(12);
     
     auto *currLayout = new QHBoxLayout();
     currentSpinBox = new QDoubleSpinBox();
@@ -139,8 +130,7 @@ void MainWindow::setupUI() {
     setBtn = new QPushButton("Установить ток");
     setBtn->setStyleSheet(baseButtonStyle);
     connect(setBtn, &QPushButton::clicked, this, &MainWindow::handleSetCurrent);
-    powSettingsBtn = new QPushButton("⚙");
-    powSettingsBtn->setFixedSize(30, 30);
+    powSettingsBtn = new QPushButton("Настройки");
     powSettingsBtn->setStyleSheet(baseButtonStyle);
     connect(powSettingsBtn, &QPushButton::clicked, [this]() {
         SettingsDialog dlg("Питание", this);
@@ -153,7 +143,9 @@ void MainWindow::setupUI() {
     pLayout->addLayout(currLayout);
 
     auto *statusLayout = new QHBoxLayout();
-    QString ledStyle = "border-radius: 5px; min-width: 120px; min-height: 25px; background-color: gray; color: white; font-weight: bold; qproperty-alignment: 'AlignCenter';";
+    QString ledStyle = QString("border-radius: 12px; min-width: 120px; min-height: 25px; background-color: %1; color: %2; font-weight: bold; font-size: 11px; qproperty-alignment: 'AlignCenter';")
+                           .arg(isDark ? "#444" : "#dcdcdc")
+                           .arg(isDark ? "white" : "black");
     
     powerLed = new QLabel("ПИТАНИЕ"); powerLed->setStyleSheet(ledStyle);
     outProt1Led = new QLabel("ЗАЩИТА ВЫХ.1"); outProt1Led->setStyleSheet(ledStyle);
@@ -177,18 +169,25 @@ void MainWindow::setupUI() {
     currentChart->createDefaultAxes();
     currentChart->axes(Qt::Vertical).first()->setRange(0, 350);
     currentChart->setTitle("Мониторинг тока (А)");
+    currentChart->setTheme(isDark ? QChart::ChartThemeDark : QChart::ChartThemeLight);
+    currentChart->setBackgroundVisible(false);
+    QPen pen(isDark ? QColor("#4CAF50") : QColor("#1E8449"));
+    pen.setWidth(2);
+    currentSeries->setPen(pen);
     currentChart->legend()->hide();
 
-    auto *chartView = new QChartView(currentChart);
+    chartView = new QChartView(currentChart);
     chartView->setRenderHint(QPainter::Antialiasing);
+    chartView->setFrameShape(QFrame::NoFrame);
+    chartView->setStyleSheet("background: transparent;");
     chartView->setMinimumHeight(250);
     pLayout->addWidget(chartView);
 
     auto *valLayout = new QHBoxLayout();
     currentValLabel = new QLabel("Текущий ток: -- А");
-    currentValLabel->setStyleSheet("font-size: 16px; font-weight: bold; color: #4CAF50;");
+    currentValLabel->setStyleSheet(QString("font-size: 16px; font-weight: bold; color: %1;").arg(isDark ? "#4CAF50" : "#1E8449"));
     adcVoltLabel = new QLabel("Напряжение АЦП: -- В");
-    adcVoltLabel->setStyleSheet("font-size: 16px; font-weight: bold; color: #2196F3;");
+    adcVoltLabel->setStyleSheet(QString("font-size: 16px; font-weight: bold; color: %1;").arg(isDark ? "#2196F3" : "#2980B9"));
     valLayout->addWidget(currentValLabel);
     valLayout->addWidget(adcVoltLabel);
     pLayout->addLayout(valLayout);
@@ -196,16 +195,16 @@ void MainWindow::setupUI() {
 
     auto *coolingTab = new QWidget();
     auto *cLayout = new QVBoxLayout(coolingTab);
+    cLayout->setContentsMargins(15, 15, 15, 15);
+    cLayout->setSpacing(12);
 
     auto *cStatusLayout = new QHBoxLayout();
-    QString cLedStyle = "border-radius: 5px; min-width: 120px; min-height: 25px; background-color: gray; color: white; font-weight: bold; qproperty-alignment: 'AlignCenter';";
     pumpLed = new QLabel("НАСОС"); pumpLed->setStyleSheet(ledStyle);
     radiatorLed = new QLabel("РАДИАТОР"); radiatorLed->setStyleSheet(ledStyle);
     cStatusLayout->addWidget(pumpLed);
     cStatusLayout->addWidget(radiatorLed);
 
-    coolSettingsBtn = new QPushButton("⚙");
-    coolSettingsBtn->setFixedSize(30, 30);
+    coolSettingsBtn = new QPushButton("Настройки");
     coolSettingsBtn->setStyleSheet(baseButtonStyle);
     connect(coolSettingsBtn, &QPushButton::clicked, [this]() {
         SettingsDialog dlg("Охлаждение", this);
@@ -225,10 +224,11 @@ void MainWindow::setupUI() {
 
     auto *sensorTab = new QWidget();
     auto *sLayout = new QVBoxLayout(sensorTab);
+    sLayout->setContentsMargins(15, 15, 15, 15);
+    sLayout->setSpacing(12);
     
     auto *sHelpLayout = new QHBoxLayout();
-    measSettingsBtn = new QPushButton("⚙");
-    measSettingsBtn->setFixedSize(30, 30);
+    measSettingsBtn = new QPushButton("Настройки");
     measSettingsBtn->setStyleSheet(baseButtonStyle);
     connect(measSettingsBtn, &QPushButton::clicked, [this]() {
         SettingsDialog dlg("Измерения", this);
@@ -260,13 +260,21 @@ void MainWindow::setupUI() {
 
 
     auto *historyTab = new QWidget();
-    auto *historyMainLayout = new QVBoxLayout(historyTab);
+    auto *historyTabLayout = new QVBoxLayout(historyTab);
+    historyTabLayout->setContentsMargins(0, 0, 0, 0);
+
+    historyStackedWidget = new QStackedWidget();
+    historyTabLayout->addWidget(historyStackedWidget);
+
+    historyListWidget = new QWidget();
+    auto *historyMainLayout = new QVBoxLayout(historyListWidget);
+    historyMainLayout->setContentsMargins(15, 15, 15, 15);
+    historyMainLayout->setSpacing(12);
 
     auto *topBarLayout = new QHBoxLayout();
     topBarLayout->addStretch();
 
-    logSettingsBtn = new QPushButton("⚙");
-    logSettingsBtn->setFixedSize(30, 30);
+    logSettingsBtn = new QPushButton("Настройки");
     logSettingsBtn->setStyleSheet(baseButtonStyle);
     connect(logSettingsBtn, &QPushButton::clicked, [this]() {
         SettingsDialog dlg("Логи", this); 
@@ -282,11 +290,18 @@ void MainWindow::setupUI() {
     textLogLayout->addWidget(new QLabel("Текстовые логи (двойной клик для открытия):"));
     logFileList = new QListWidget();
     
-    logFileList->setStyleSheet(
-        "QListWidget { background-color: #1e1e1e; color: #dcdcdc; border: 1px solid #333; font-family: 'Consolas'; }"
-        "QListWidget::item { padding: 5px; border-bottom: 1px solid #2a2a2a; }"
-        "QListWidget::item:hover { background-color: #333; }"
-    );
+    QString listStyle = isDark ?
+                        "QListWidget { background-color: #1a1a1a; color: #a9b7c6; border: 1px solid #333; border-radius: 6px; font-family: 'Consolas', monospace; font-size: 13px; padding: 5px; } "
+                        "QListWidget::item { padding: 6px; border-bottom: 1px solid #2a2a2a; border-radius: 4px; } "
+                        "QListWidget::item:hover { background-color: #2a2a2a; } "
+                        "QListWidget::item:selected { background-color: #2196F3; color: white; }"
+                        :
+                        "QListWidget { background-color: #ffffff; color: #333; border: 1px solid #c5c5c5; border-radius: 6px; font-family: 'Consolas', monospace; font-size: 13px; padding: 5px; } "
+                        "QListWidget::item { padding: 6px; border-bottom: 1px solid #e1e1e1; border-radius: 4px; } "
+                        "QListWidget::item:hover { background-color: #f0f0f0; } "
+                        "QListWidget::item:selected { background-color: #007bff; color: white; }";
+
+    logFileList->setStyleSheet(listStyle);
 
     connect(logFileList, &QListWidget::itemDoubleClicked, this, &MainWindow::onLogFileDoubleClicked);
 
@@ -296,11 +311,7 @@ void MainWindow::setupUI() {
     dataLogLayout->addWidget(new QLabel("Логи телеметрии (двойной клик - графики):"));
     dataFileList = new QListWidget();
 
-    dataFileList->setStyleSheet(
-        "QListWidget { background-color: #1e1e1e; color: #dcdcdc; border: 1px solid #333; font-family: 'Consolas'; }"
-        "QListWidget::item { padding: 5px; border-bottom: 1px solid #2a2a2a; }"
-        "QListWidget::item:hover { background-color: #333; }"
-    );
+    dataFileList->setStyleSheet(listStyle);
 
     connect(dataFileList, &QListWidget::itemDoubleClicked, this, &MainWindow::onDataFileDoubleClicked);
 
@@ -316,6 +327,31 @@ void MainWindow::setupUI() {
     
     historyMainLayout->addWidget(refreshBtn);
 
+    historyViewWidget = new QWidget();
+    auto *viewLayout = new QVBoxLayout(historyViewWidget);
+    viewLayout->setContentsMargins(15, 15, 15, 15);
+    viewLayout->setSpacing(12);
+
+    auto *closeLogBtn = new QPushButton("Закрыть лог и вернуться");
+    closeLogBtn->setStyleSheet(baseButtonStyle);
+    connect(closeLogBtn, &QPushButton::clicked, [this]() {
+        historyStackedWidget->setCurrentWidget(historyListWidget);
+        logFileTextEdit->clear();
+    });
+
+    logFileTextEdit = new QTextEdit();
+    logFileTextEdit->setReadOnly(true);
+    logFileTextEdit->setStyleSheet(QString("QTextEdit { background-color: %1; color: %2; border: 1px solid %3; border-radius: 6px; font-family: 'Consolas', monospace; font-size: 13px; padding: 5px; }")
+                                   .arg(isDark ? "#1a1a1a" : "#ffffff")
+                                   .arg(isDark ? "#a9b7c6" : "#333333")
+                                   .arg(isDark ? "#333" : "#c5c5c5"));
+
+    viewLayout->addWidget(closeLogBtn);
+    viewLayout->addWidget(logFileTextEdit);
+
+    historyStackedWidget->addWidget(historyListWidget);
+    historyStackedWidget->addWidget(historyViewWidget);
+    historyStackedWidget->setCurrentWidget(historyListWidget);
 
     tabs->addTab(powerTab, "Питание");
     tabs->addTab(coolingTab, "Охлаждение");
@@ -328,11 +364,17 @@ void MainWindow::setupUI() {
 
 
     QScrollArea *scrollArea = new QScrollArea();
+    scrollArea->setObjectName("logScrollArea");
     scrollArea->setWidgetResizable(true);
     scrollArea->setFixedHeight(150);
-    scrollArea->setStyleSheet("background-color: #1e1e1e; border: 1px solid #333;");
+    scrollArea->viewport()->setStyleSheet("background: transparent;");
+    scrollArea->setStyleSheet(QString("QScrollArea { background-color: %1; border: 1px solid %2; border-radius: 6px; margin-top: 5px; }")
+                              .arg(isDark ? "#1a1a1a" : "#ffffff")
+                              .arg(isDark ? "#333" : "#c5c5c5"));
 
     logContainer = new QWidget();
+    logContainer->setObjectName("logContainer");
+    logContainer->setStyleSheet(QString("#logContainer { background-color: %1; }").arg(isDark ? "#1a1a1a" : "#ffffff"));
     logLayout = new QVBoxLayout(logContainer);
     logLayout->setAlignment(Qt::AlignTop);
     logLayout->setContentsMargins(5, 5, 5, 5);
@@ -353,10 +395,15 @@ void MainWindow::onLogMessage(const QString& msg) {
     QLabel *label = new QLabel(fullMsg);
 
     label->setWordWrap(true);
-    label->setStyleSheet("padding: 3px; border-bottom: 1px solid #2a2a2a; color: #dcdcdc; font-family: 'Consolas', 'Monaco', monospace;");
+    QString themeName = SettingsManager::instance().get("theme", "dark").toString();
+    bool isDark = (themeName == "dark");
+    label->setStyleSheet(QString("padding: 4px; border-bottom: 1px solid %1; color: %2; font-family: 'Consolas', 'Monaco', monospace; font-size: 12px; background: transparent;")
+                         .arg(isDark ? "#2a2a2a" : "#e1e1e1")
+                         .arg(isDark ? "#a9b7c6" : "#333333"));
 
     if (msg.contains("!")) {
-        label->setStyleSheet(label->styleSheet() + "color: #ff6b6b; font-weight: bold;");
+        QString errorColor = isDark ? "#F44336" : "#D32F2F";
+        label->setStyleSheet(label->styleSheet() + QString("color: %1; font-weight: bold;").arg(errorColor));
     }
 
     logLayout->insertWidget(0, label);
@@ -390,7 +437,31 @@ void MainWindow::refreshLogList() {
 void MainWindow::onLogFileDoubleClicked(QListWidgetItem *item) {
     QString filePath = QDir::currentPath() + "/Logs/" + item->text();
 
-    QDesktopServices::openUrl(QUrl::fromLocalFile(filePath));
+    QFile file(filePath);
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        return;
+    }
+
+    QString themeName = SettingsManager::instance().get("theme", "dark").toString();
+    bool isDark = (themeName == "dark");
+    QString errorColor = isDark ? "#F44336" : "#D32F2F";
+
+    QTextStream in(&file);
+    QStringList htmlLines;
+    htmlLines.append("<div style='white-space: pre-wrap;'>");
+    while (!in.atEnd()) {
+        QString line = in.readLine().toHtmlEscaped();
+        if (line.contains("!")) {
+            htmlLines.append(QString("<span style='color: %1; font-weight: bold;'>").arg(errorColor) + line + "</span><br>");
+        } else {
+            htmlLines.append(line + "<br>");
+        }
+    }
+    htmlLines.append("</div>");
+    file.close();
+
+    logFileTextEdit->setHtml(htmlLines.join(""));
+    historyStackedWidget->setCurrentWidget(historyViewWidget);
 }
 
 void MainWindow::onDataFileDoubleClicked(QListWidgetItem *item) {
@@ -408,15 +479,22 @@ void MainWindow::onTimerTick() {
     bool isPowerOn = (status & 0x01);
     bool hasError = (status & 0x3E) != 0;
 
-    QString ledStyle = "border-radius: 5px; min-width: 90px; min-height: 25px; font-weight: bold; font-size: 12px; color: white;";
-    globalPowerLed->setStyleSheet(ledStyle + (isPowerOn ? "background-color: green;" : "background-color: gray;"));
-    globalErrorLed->setStyleSheet(ledStyle + (hasError ? "background-color: red;" : "background-color: gray;"));
+    QString themeName = SettingsManager::instance().get("theme", "dark").toString();
+    bool isDark = (themeName == "dark");
+    const char* colorOn = isDark ? "#4CAF50" : "#2E7D32";
+    const char* colorOff = isDark ? "#444" : "#dcdcdc";
+    const char* colorErr = isDark ? "#F44336" : "#C62828";
+    const char* textColor = isDark ? "white" : "black";
 
-    auto setCol = [](QLabel* l, bool cond, const char* cOn, const char* cOff) {
-        l->setStyleSheet(QString("border-radius:5px; min-width:90px; min-height:25px; font-weight: bold; font-size:10px; color:white; background-color: %1;").arg(cond ? cOn : cOff));
+    QString globalLedStyle = QString("border-radius: 12px; min-width: 90px; min-height: 25px; font-weight: bold; font-size: 11px; color: %1; qproperty-alignment: 'AlignCenter';").arg(textColor);
+    globalPowerLed->setStyleSheet(globalLedStyle + QString("background-color: %1;").arg(isPowerOn ? colorOn : colorOff));
+    globalErrorLed->setStyleSheet(globalLedStyle + QString("background-color: %1;").arg(hasError ? colorErr : colorOff));
+
+    auto setCol = [textColor](QLabel* l, bool cond, const char* cOn, const char* cOff) {
+        l->setStyleSheet(QString("border-radius: 12px; min-width: 90px; min-height: 25px; font-weight: bold; font-size: 11px; color: %1; qproperty-alignment: 'AlignCenter'; background-color: %2;").arg(textColor).arg(cond ? cOn : cOff));
     };
-    setCol(pumpLed, systemManager->getCoolState(), "lightgreen", "gray");
-    setCol(radiatorLed, systemManager->getCoolState(), "lightgreen", "gray");
+    setCol(pumpLed, systemManager->getCoolState(), colorOn, colorOff);
+    setCol(radiatorLed, systemManager->getCoolState(), colorOn, colorOff);
     tempLabel->setText(QString("Температура: %1 °C").arg(systemManager->getTemp()));
     flowLabel->setText(QString("Поток: %1 л/мин").arg(systemManager->getFlow()));
 
@@ -451,16 +529,120 @@ void MainWindow::onTimerTick() {
 }
 
 void MainWindow::updateLamps(uint8_t status) {
-    auto setCol = [](QLabel* l, bool cond, const char* cOn, const char* cOff) {
-        l->setStyleSheet(QString("border-radius:5px; min-width:90px; min-height:25px; font-weight: bold; font-size:10px; color:white; background-color: %1;").arg(cond ? cOn : cOff));
+    QString themeName = SettingsManager::instance().get("theme", "dark").toString();
+    bool isDark = (themeName == "dark");
+    const char* colorOn = isDark ? "#4CAF50" : "#2E7D32";
+    const char* colorErr = isDark ? "#F44336" : "#C62828";
+    const char* colorOff = isDark ? "#444" : "#dcdcdc";
+    const char* textColor = isDark ? "white" : "black";
+
+    auto setCol = [textColor](QLabel* l, bool cond, const char* cOn, const char* cOff) {
+        l->setStyleSheet(QString("border-radius: 12px; min-width: 90px; min-height: 25px; font-weight: bold; font-size: 11px; color: %1; qproperty-alignment: 'AlignCenter'; background-color: %2;").arg(textColor).arg(cond ? cOn : cOff));
     };
     
-    setCol(powerLed,    (status & 0x01), "lightgreen", "gray"); 
-    setCol(outProt1Led, (status & 0x02), "red", "gray");        
-    setCol(outProt2Led, (status & 0x04), "red", "gray");        
-    setCol(tempProtLed, (status & 0x08), "red", "gray");        
-    setCol(invErrLed,   (status & 0x10), "red", "gray");        
-    setCol(phaseErrLed, (status & 0x20), "red", "gray");
+    setCol(powerLed,    (status & 0x01), colorOn, colorOff); 
+    setCol(outProt1Led, (status & 0x02), colorErr, colorOff);        
+    setCol(outProt2Led, (status & 0x04), colorErr, colorOff);        
+    setCol(tempProtLed, (status & 0x08), colorErr, colorOff);        
+    setCol(invErrLed,   (status & 0x10), colorErr, colorOff);        
+    setCol(phaseErrLed, (status & 0x20), colorErr, colorOff);
+}
+
+void MainWindow::applyTheme() {
+    this->setStyleSheet(Theme::getAppStylesheet());
+    
+    QString themeName = SettingsManager::instance().get("theme", "dark").toString();
+    bool isDark = (themeName == "dark");
+
+    startBtn->setStyleSheet(
+        QString("QPushButton:enabled { background-color: %1; color: white; height: 35px; border: none; } "
+                "QPushButton:hover:enabled { background-color: %2; }")
+        .arg(isDark ? "#2E7D32" : "#388E3C")
+        .arg(isDark ? "#4CAF50" : "#66BB6A"));
+    
+    stopBtn->setStyleSheet(
+        QString("QPushButton:enabled { background-color: %1; color: white; height: 35px; border: none; } "
+                "QPushButton:hover:enabled { background-color: %2; }")
+        .arg(isDark ? "#C62828" : "#D32F2F")
+        .arg(isDark ? "#F44336" : "#E57373"));
+
+    globalCurrent->setStyleSheet(QString("font-size: 18px; font-weight: bold; color: %1;").arg(isDark ? "#4CAF50" : "#1E8449"));
+    globalTemp->setStyleSheet(QString("font-size: 18px; font-weight: bold; color: %1;").arg(isDark ? "#2196F3" : "#2980B9"));
+    
+    // --- Радикальное пересоздание графика для исправления "призрачной" линии в OpenGL ---
+
+    // 1. Создаем новый график и настраиваем его
+    auto* newChart = new QChart();
+    newChart->setTheme(isDark ? QChart::ChartThemeDark : QChart::ChartThemeLight);
+    newChart->setBackgroundVisible(false);
+    newChart->legend()->hide();
+    newChart->setTitle("Мониторинг тока (А)");
+
+    // 2. Создаем новую линию, стилизуем и загружаем в нее старые данные
+    auto* newSeries = new QLineSeries();
+    newSeries->setUseOpenGL(true);
+    QPen pen(isDark ? QColor("#4CAF50") : QColor("#1E8449"));
+    pen.setWidth(2);
+    newSeries->setPen(pen);
+    newSeries->replace(ringBuffer);
+
+    // 3. Добавляем линию на новый график и настраиваем оси
+    newChart->addSeries(newSeries);
+    newChart->createDefaultAxes();
+    newChart->axes(Qt::Vertical).first()->setRange(0, 350);
+    if (!ringBuffer.isEmpty()) {
+        newChart->axes(Qt::Horizontal).first()->setRange(ringBuffer.last().x() - 10.0f, ringBuffer.last().x());
+    } else {
+        newChart->axes(Qt::Horizontal).first()->setRange(time_axis - 10.0f, time_axis);
+    }
+    
+    // 4. Подменяем график во вьюпорте и удаляем старые объекты
+    chartView->setChart(newChart);
+    delete currentChart; // Старый график удаляется, унося с собой старую линию
+    currentChart = newChart;
+    currentSeries = newSeries;
+
+    currentValLabel->setStyleSheet(QString("font-size: 16px; font-weight: bold; color: %1;").arg(isDark ? "#4CAF50" : "#1E8449"));
+    adcVoltLabel->setStyleSheet(QString("font-size: 16px; font-weight: bold; color: %1;").arg(isDark ? "#2196F3" : "#2980B9"));
+
+    QString listStyle = isDark ?
+                        "QListWidget { background-color: #1a1a1a; color: #a9b7c6; border: 1px solid #333; border-radius: 6px; font-family: 'Consolas', monospace; font-size: 13px; padding: 5px; } "
+                        "QListWidget::item { padding: 6px; border-bottom: 1px solid #2a2a2a; border-radius: 4px; } "
+                        "QListWidget::item:hover { background-color: #2a2a2a; } "
+                        "QListWidget::item:selected { background-color: #2196F3; color: white; }"
+                        :
+                        "QListWidget { background-color: #ffffff; color: #333; border: 1px solid #c5c5c5; border-radius: 6px; font-family: 'Consolas', monospace; font-size: 13px; padding: 5px; } "
+                        "QListWidget::item { padding: 6px; border-bottom: 1px solid #e1e1e1; border-radius: 4px; } "
+                        "QListWidget::item:hover { background-color: #f0f0f0; } "
+                        "QListWidget::item:selected { background-color: #007bff; color: white; }";
+
+    logFileList->setStyleSheet(listStyle);
+    dataFileList->setStyleSheet(listStyle);
+
+    logFileTextEdit->setStyleSheet(QString("QTextEdit { background-color: %1; color: %2; border: 1px solid %3; border-radius: 6px; font-family: 'Consolas', monospace; font-size: 13px; padding: 5px; }")
+                                   .arg(isDark ? "#1a1a1a" : "#ffffff")
+                                   .arg(isDark ? "#a9b7c6" : "#333333")
+                                   .arg(isDark ? "#333" : "#c5c5c5"));
+
+    if (auto scrollArea = this->findChild<QScrollArea*>("logScrollArea")) {
+        scrollArea->setStyleSheet(QString("QScrollArea { background-color: %1; border: 1px solid %2; border-radius: 6px; margin-top: 5px; }")
+                                  .arg(isDark ? "#1a1a1a" : "#ffffff")
+                                  .arg(isDark ? "#333" : "#c5c5c5"));
+    }
+    
+    logContainer->setStyleSheet(QString("#logContainer { background-color: %1; }").arg(isDark ? "#1a1a1a" : "#ffffff"));
+    
+    for (int i = 0; i < logLayout->count(); ++i) {
+        if (auto label = qobject_cast<QLabel*>(logLayout->itemAt(i)->widget())) {
+            label->setStyleSheet(QString("padding: 4px; border-bottom: 1px solid %1; color: %2; font-family: 'Consolas', 'Monaco', monospace; font-size: 12px; background: transparent;")
+                                 .arg(isDark ? "#2a2a2a" : "#e1e1e1")
+                                 .arg(isDark ? "#a9b7c6" : "#333333"));
+            if (label->text().contains("!")) {
+                QString errorColor = isDark ? "#F44336" : "#D32F2F";
+                label->setStyleSheet(label->styleSheet() + QString("color: %1; font-weight: bold;").arg(errorColor));
+            }
+        }
+    }
 }
 
 void MainWindow::onBusyStateChanged(bool isBusy) {

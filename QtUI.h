@@ -12,6 +12,8 @@
 #include <QtCharts/QLineSeries>
 #include <QListWidget>
 #include <QElapsedTimer>
+#include <QStackedWidget>
+#include <QTextEdit>
 
 class SystemManager;
 
@@ -21,6 +23,8 @@ class MainWindow : public QMainWindow {
 public:
     MainWindow(SystemManager *manager, QWidget *parent = nullptr);
     ~MainWindow() = default;
+
+    void applyTheme();
 
 private slots:
     void onTimerTick();          
@@ -78,8 +82,14 @@ private:
     QLineSeries *currentSeries;
     QVector<QPointF> ringBuffer;
     QChart *currentChart;
+    QChartView *chartView;
     float time_axis;
     float updateFreq;
+
+    QStackedWidget *historyStackedWidget;
+    QWidget *historyListWidget;
+    QWidget *historyViewWidget;
+    QTextEdit *logFileTextEdit;
 
     QVBoxLayout *logLayout;
     QWidget *logContainer;

@@ -10,6 +10,10 @@
 #include <QMessageBox>
 #include <QPushButton>
 #include <QLabel>
+#include <QComboBox>
+#include <QApplication>
+#include "QtUI.h"
+#include "DataViewerWindow.h"
 
 SettingsDialog::SettingsDialog(const QString& tabName, QWidget *parent) : QDialog(parent) {
     setWindowTitle("Настройки: " + tabName);
@@ -83,10 +87,35 @@ SettingsDialog::SettingsDialog(const QString& tabName, QWidget *parent) : QDialo
         fLayout->addWidget(new QLabel("Interface freshness limit (s): "));
         fLayout->addWidget(freshSpin);
         form->addRow(fLayout);
+
+        auto *themeLayout = new QHBoxLayout();
+        auto *themeCombo = new QComboBox();
+        themeCombo->addItems({"Темная", "Светлая"});
+        QString currentTheme = sm.get("theme", "dark").toString();
+        themeCombo->setCurrentIndex(currentTheme == "dark" ? 0 : 1);
+        themeLayout->addWidget(new QLabel("Тема интерфейса:"));
+        themeLayout->addWidget(themeCombo);
+        form->addRow(themeLayout);
         
         connect(this, &QDialog::accepted, [=, &sm]() {
             sm.set("interface_freshness_limit", freshSpin->value() * 1000);
-            if ((freqSpin->value() != oldFreq) || (pollSpin->value() != oldPoll)) {
+            QString newTheme = themeCombo->currentIndex() == 0 ? "dark" : "light";
+
+            bool restartNeeded = (freqSpin->value() != oldFreq) || (pollSpin->value() != oldPoll);
+
+            if (newTheme != currentTheme) {
+                sm.set("theme", newTheme);
+                for (QWidget *widget : QApplication::topLevelWidgets()) {
+                    if (auto *mainWindow = qobject_cast<MainWindow*>(widget)) {
+                        mainWindow->applyTheme();
+                    }
+                    if (auto *dataViewer = qobject_cast<DataViewerWindow*>(widget)) {
+                        dataViewer->applyTheme();
+                    }
+                }
+            }
+
+            if (restartNeeded) {
                 sm.set("update_frequency", freqSpin->value());
                 sm.set("can_bus_poll_timer", pollSpin->value());
                 QMessageBox::information(nullptr, "Требуется перезагрузка", 

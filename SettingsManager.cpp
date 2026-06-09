@@ -51,5 +51,6 @@ void SettingsManager::createDefault() {
     m_settings["log_intervalMs"] = 500;
     m_settings["can_bus_poll_timer"] = 10;
     m_settings["interface_freshness_limit"] = 5000;
+    m_settings["theme"] = "light";
     save();
 }

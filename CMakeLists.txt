@@ -40,6 +40,7 @@ set(SOURCES
     LoggerTXT.cpp
     LoggerCSV.h
     LoggerCSV.cpp
+    Theme.h
 )
 
 add_executable(AMSControl WIN32 ${SOURCES})

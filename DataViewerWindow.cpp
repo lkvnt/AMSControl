@@ -5,9 +5,12 @@
 #include <QToolTip>
 #include <QDateTime>
 #include <QMouseEvent>
+#include <QWheelEvent>
 #include <QCursor>
 #include <QLabel>
 #include "DataViewerWindow.h"
+#include "Theme.h"
+#include "SettingsManager.h"
 
 class ChartViewPanZoom : public QChartView {
     bool m_isPanning = false;
@@ -28,6 +31,7 @@ protected:
             QChartView::mousePressEvent(event);
         }
     }
+
     void mouseMoveEvent(QMouseEvent *event) override {
         if (m_isPanning) {
             QPoint delta = event->pos() - m_lastMousePos;
@@ -37,6 +41,7 @@ protected:
             QChartView::mouseMoveEvent(event);
         }
     }
+
     void mouseReleaseEvent(QMouseEvent *event) override {
         if (event->button() == Qt::RightButton) {
             m_isPanning = false;
@@ -45,6 +50,38 @@ protected:
             
         } else {
             QChartView::mouseReleaseEvent(event);
+        }
+    }
+
+    void wheelEvent(QWheelEvent *event) override {
+        qreal factor = event->angleDelta().y() > 0 ? 1.2 : 1.0 / 1.2;
+        QRectF plotArea = chart()->plotArea();
+
+        QPointF mousePos;
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+        mousePos = event->position();
+#else
+        mousePos = event->pos();
+#endif
+        if (plotArea.contains(mousePos)) {
+            QRectF newRect = plotArea;
+            newRect.setWidth(plotArea.width() / factor);
+            newRect.setHeight(plotArea.height() / factor);
+
+            qreal xRatio = (mousePos.x() - plotArea.left()) / plotArea.width();
+            qreal yRatio = (mousePos.y() - plotArea.top()) / plotArea.height();
+
+            newRect.moveLeft(mousePos.x() - newRect.width() * xRatio);
+            newRect.moveTop(mousePos.y() - newRect.height() * yRatio);
+
+            QChart::AnimationOptions currentOptions = chart()->animationOptions();
+            chart()->setAnimationOptions(QChart::NoAnimation); // Временно отключаем анимацию для плавного зума
+            chart()->zoomIn(newRect);
+            chart()->setAnimationOptions(currentOptions);
+
+            event->accept();
+        } else {
+            QChartView::wheelEvent(event);
         }
     }
 };
@@ -64,8 +101,12 @@ DataViewerWindow::DataViewerWindow(const QString& filePath, QWidget *parent)
         showCustomTooltip(m_lastMousePos);
     });
 
+    this->setStyleSheet(Theme::getAppStylesheet());
+
     auto *centralWidget = new QWidget(this);
     auto *mainLayout = new QVBoxLayout(centralWidget);
+    mainLayout->setContentsMargins(15, 15, 15, 15);
+    mainLayout->setSpacing(12);
 
     auto *topLayout = new QHBoxLayout();
 
@@ -79,18 +120,24 @@ DataViewerWindow::DataViewerWindow(const QString& filePath, QWidget *parent)
         "Цилиндр Фарадея 2 (SensorControl)", 
         "Давление/Вакуум (SensorControl)"
     };
-    QLabel* label1 = new QLabel("График 1 (<b style='color:#2196F3;'>Синий</b>):");
-    label1->setTextFormat(Qt::RichText);
-    comboLayout1->addWidget(label1);
+
+    QString themeName = SettingsManager::instance().get("theme", "dark").toString();
+    bool isDark = (themeName == "dark");
+    QString color1 = isDark ? "#2196F3" : "#005cc5";
+    QString color2 = isDark ? "#F44336" : "#C62828";
+
+    m_label1 = new QLabel(QString("График 1 (<b style='color:%1;'>Синий</b>):").arg(color1));
+    m_label1->setTextFormat(Qt::RichText);
+    comboLayout1->addWidget(m_label1);
     m_metricCombo1 = new QComboBox();
     m_metricCombo1->addItems(metrics);
     connect(m_metricCombo1, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &DataViewerWindow::onMetricChanged);
     comboLayout1->addWidget(m_metricCombo1);
 
     auto *comboLayout2 = new QHBoxLayout();
-    QLabel* label2 = new QLabel("График 2 (<b style='color:#F44336;'>Красный</b>):");
-    label2->setTextFormat(Qt::RichText);
-    comboLayout2->addWidget(label2);
+    m_label2 = new QLabel(QString("График 2 (<b style='color:%1;'>Красный</b>):").arg(color2));
+    m_label2->setTextFormat(Qt::RichText);
+    comboLayout2->addWidget(m_label2);
     m_metricCombo2 = new QComboBox();
     QStringList metricsWithEmpty = {"Пусто"};
     metricsWithEmpty.append(metrics);
@@ -110,22 +157,31 @@ DataViewerWindow::DataViewerWindow(const QString& filePath, QWidget *parent)
 
     m_chart = new QChart();
     m_chart->legend()->hide();
+    m_chart->setMargins(QMargins(0, 0, 0, 0));
 
     m_chart->setCacheMode(QChart::DeviceCoordinateCache);
     m_chart->setAnimationOptions(QChart::SeriesAnimations);
     m_chart->setAnimationDuration(100);
+    m_chart->setTheme(isDark ? QChart::ChartThemeDark : QChart::ChartThemeLight);
+    m_chart->setBackgroundVisible(false);
 
     m_axisX = nullptr;
     m_axisY = nullptr;
     m_axisY2 = nullptr;
 
     m_chartView = new ChartViewPanZoom(m_chart);
+    m_chartView->setFrameShape(QFrame::NoFrame);
+    m_chartView->setRenderHint(QPainter::Antialiasing);
+    m_chartView->setStyleSheet("background: transparent;");
 
     m_chartView->viewport()->installEventFilter(this);
     m_chartView->setMouseTracking(true);
 
     m_tooltipWidget = new QLabel(m_chartView);
-    m_tooltipWidget->setStyleSheet("QLabel { background-color: #f0f0f0; border: 1px solid #303030; border-radius: 4px; padding: 6px; color: black; }");
+    m_tooltipWidget->setStyleSheet(QString("QLabel { background-color: %1; border: 1px solid %2; border-radius: 6px; padding: 8px; color: %3; font-size: 12px; }")
+                                   .arg(isDark ? "#1e1e1e" : "#ffffff")
+                                   .arg(isDark ? "#444" : "#c5c5c5")
+                                   .arg(isDark ? "#e0e0e0" : "#111111"));
     m_tooltipWidget->setWindowFlags(Qt::ToolTip | Qt::FramelessWindowHint | Qt::WindowDoesNotAcceptFocus);
     m_tooltipWidget->setAttribute(Qt::WA_ShowWithoutActivating);
     m_tooltipWidget->setAttribute(Qt::WA_TransparentForMouseEvents);
@@ -136,11 +192,11 @@ DataViewerWindow::DataViewerWindow(const QString& filePath, QWidget *parent)
     m_lineH2 = new QGraphicsLineItem(m_chart);
     m_lineV2 = new QGraphicsLineItem(m_chart);
 
-    QPen pen1(QColor("#88c0ee"), 1, Qt::DashLine);
+    QPen pen1(QColor(color1), 1, Qt::DashLine);
     m_lineH1->setPen(pen1); m_lineV1->setPen(pen1);
     m_lineH1->setZValue(11); m_lineV1->setZValue(11);
 
-    QPen pen2(QColor("#ee908a"), 1, Qt::DashLine);
+    QPen pen2(QColor(color2), 1, Qt::DashLine);
     m_lineH2->setPen(pen2); m_lineV2->setPen(pen2);
     m_lineH2->setZValue(11); m_lineV2->setZValue(11);
 
@@ -273,7 +329,9 @@ void DataViewerWindow::updateChart() {
         auto flushSegment = [&]() {
             if (currentSegment.isEmpty()) return;
             QLineSeries* series = new QLineSeries();
-            series->setColor(color);
+            QPen pen(color);
+            pen.setWidth(2);
+            series->setPen(pen);
             // series->setUseOpenGL(true);
             series->replace(currentSegment);
             outData.seriesList.append(series);
@@ -311,11 +369,14 @@ void DataViewerWindow::updateChart() {
     };
 
     MetricData data1, data2;
-    generateSeries(metric1, QColor("#2196F3"), data1);
+    QString themeName = SettingsManager::instance().get("theme", "dark").toString();
+    bool isDark = (themeName == "dark");
+
+    generateSeries(metric1, isDark ? QColor("#2196F3") : QColor("#005cc5"), data1);
     m_currentPoints1 = data1.currentPoints;
     
     if (metric2 >= 0) {
-        generateSeries(metric2, QColor("#F44336"), data2);
+        generateSeries(metric2, isDark ? QColor("#F44336") : QColor("#C62828"), data2);
         m_currentPoints2 = data2.currentPoints;
     } else {
         m_currentPoints2.clear();
@@ -349,10 +410,10 @@ void DataViewerWindow::updateChart() {
         return axis;
     };
 
-    m_axisY = createYAxis("Значение 1", "#2196F3", Qt::AlignLeft);
+    m_axisY = createYAxis("Значение 1", isDark ? "#2196F3" : "#005cc5", Qt::AlignLeft);
 
     if (metric2 >= 0) {
-        m_axisY2 = createYAxis("Значение 2", "#F44336", Qt::AlignRight);
+        m_axisY2 = createYAxis("Значение 2", isDark ? "#F44336" : "#C62828", Qt::AlignRight);
     }
 
     for (QLineSeries* s : std::as_const(data1.seriesList)) {
@@ -379,6 +440,33 @@ void DataViewerWindow::updateChart() {
     if (metric2 >= 0) {
         applyMargin(data2.minY, data2.maxY, m_axisY2);
     }
+}
+
+void DataViewerWindow::applyTheme() {
+    this->setStyleSheet(Theme::getAppStylesheet());
+    
+    QString themeName = SettingsManager::instance().get("theme", "dark").toString();
+    bool isDark = (themeName == "dark");
+    QString color1 = isDark ? "#2196F3" : "#005cc5";
+    QString color2 = isDark ? "#F44336" : "#C62828";
+    
+    if (m_label1) m_label1->setText(QString("График 1 (<b style='color:%1;'>Синий</b>):").arg(color1));
+    if (m_label2) m_label2->setText(QString("График 2 (<b style='color:%1;'>Красный</b>):").arg(color2));
+    
+    m_chart->setTheme(isDark ? QChart::ChartThemeDark : QChart::ChartThemeLight);
+    m_chart->setBackgroundVisible(false);
+    
+    m_tooltipWidget->setStyleSheet(QString("QLabel { background-color: %1; border: 1px solid %2; border-radius: 6px; padding: 8px; color: %3; font-size: 12px; }")
+                                   .arg(isDark ? "#1e1e1e" : "#ffffff")
+                                   .arg(isDark ? "#444" : "#c5c5c5")
+                                   .arg(isDark ? "#e0e0e0" : "#111111"));
+    
+    QPen pen1(QColor(color1), 1, Qt::DashLine);
+    m_lineH1->setPen(pen1); m_lineV1->setPen(pen1);
+    QPen pen2(QColor(color2), 1, Qt::DashLine);
+    m_lineH2->setPen(pen2); m_lineV2->setPen(pen2);
+
+    updateChart();
 }
 
 void DataViewerWindow::onMetricChanged(int index) {
@@ -522,9 +610,13 @@ void DataViewerWindow::showCustomTooltip(const QPointF& mousePixelPos) {
         QString text = "";
         QRectF plotArea = m_chart->plotArea();
 
+        QString themeName = SettingsManager::instance().get("theme", "dark").toString();
+        bool isDark = (themeName == "dark");
+
         if (dist1 < 30) {
             QDateTime dt = QDateTime::fromMSecsSinceEpoch(static_cast<qint64>(pt1.x()));
-            text += QString("<b style='color:#2196F3;'>Синий график</b><br>Время: %1<br>Значение: %2")
+            text += QString("<b style='color:%1;'>Синий график</b><br>Время: %2<br>Значение: %3")
+                    .arg(isDark ? "#2196F3" : "#005cc5")
                     .arg(dt.toString("HH:mm:ss.zzz"))
                     .arg(pt1.y(), 0, 'f', 4);
 
@@ -540,7 +632,8 @@ void DataViewerWindow::showCustomTooltip(const QPointF& mousePixelPos) {
         if (dist2 < 30) {
             QDateTime dt = QDateTime::fromMSecsSinceEpoch(static_cast<qint64>(pt2.x()));
             if (text != "") text += "<br>";
-            text += QString("<b style='color:#F44336;'>Красный график</b><br>Время: %1<br>Значение: %2")
+            text += QString("<b style='color:%1;'>Красный график</b><br>Время: %2<br>Значение: %3")
+                    .arg(isDark ? "#F44336" : "#C62828")
                     .arg(dt.toString("HH:mm:ss.zzz"))
                     .arg(pt2.y(), 0, 'f', 4);
             
