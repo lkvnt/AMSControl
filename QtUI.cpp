@@ -31,12 +31,11 @@ MainWindow::MainWindow(SystemManager *manager, QWidget *parent)
     updateFreq = SettingsManager::instance().get("update_frequency").toInt();
     if (updateFreq <= 0) updateFreq = 10;
     connect(updateTimer, &QTimer::timeout, this, &MainWindow::onTimerTick);
-    updateTimer->start(1000.0 / updateFreq);
 
     onBusyStateChanged(false);
-    QTimer::singleShot(200, this, [this]() {
-        systemManager->initHardware();
-    });
+    systemManager->initHardware();
+
+    updateTimer->start(1000.0 / updateFreq);
 }
 
 void MainWindow::setupUI() {
@@ -163,7 +162,6 @@ void MainWindow::setupUI() {
     pLayout->addLayout(statusLayout);
 
     currentSeries = new QLineSeries();
-    currentSeries->setUseOpenGL(true);
     currentChart = new QChart();
     currentChart->addSeries(currentSeries);
     currentChart->createDefaultAxes();
@@ -569,38 +567,26 @@ void MainWindow::applyTheme() {
     globalCurrent->setStyleSheet(QString("font-size: 18px; font-weight: bold; color: %1;").arg(isDark ? "#4CAF50" : "#1E8449"));
     globalTemp->setStyleSheet(QString("font-size: 18px; font-weight: bold; color: %1;").arg(isDark ? "#2196F3" : "#2980B9"));
     
-    // --- Радикальное пересоздание графика для исправления "призрачной" линии в OpenGL ---
+    currentChart->removeSeries(currentSeries);
+    delete currentSeries;
 
-    // 1. Создаем новый график и настраиваем его
-    auto* newChart = new QChart();
-    newChart->setTheme(isDark ? QChart::ChartThemeDark : QChart::ChartThemeLight);
-    newChart->setBackgroundVisible(false);
-    newChart->legend()->hide();
-    newChart->setTitle("Мониторинг тока (А)");
+    currentChart->setTheme(isDark ? QChart::ChartThemeDark : QChart::ChartThemeLight);
+    currentChart->setBackgroundVisible(false);
 
-    // 2. Создаем новую линию, стилизуем и загружаем в нее старые данные
-    auto* newSeries = new QLineSeries();
-    newSeries->setUseOpenGL(true);
+    currentSeries = new QLineSeries();
     QPen pen(isDark ? QColor("#4CAF50") : QColor("#1E8449"));
     pen.setWidth(2);
-    newSeries->setPen(pen);
-    newSeries->replace(ringBuffer);
-
-    // 3. Добавляем линию на новый график и настраиваем оси
-    newChart->addSeries(newSeries);
-    newChart->createDefaultAxes();
-    newChart->axes(Qt::Vertical).first()->setRange(0, 350);
-    if (!ringBuffer.isEmpty()) {
-        newChart->axes(Qt::Horizontal).first()->setRange(ringBuffer.last().x() - 10.0f, ringBuffer.last().x());
-    } else {
-        newChart->axes(Qt::Horizontal).first()->setRange(time_axis - 10.0f, time_axis);
-    }
+    currentSeries->setPen(pen);
+    currentChart->addSeries(currentSeries);
+    currentChart->createDefaultAxes();
+    currentChart->axes(Qt::Vertical).first()->setRange(0, 350);
+    currentSeries->replace(ringBuffer);
     
-    // 4. Подменяем график во вьюпорте и удаляем старые объекты
-    chartView->setChart(newChart);
-    delete currentChart; // Старый график удаляется, унося с собой старую линию
-    currentChart = newChart;
-    currentSeries = newSeries;
+    if (!ringBuffer.isEmpty()) {
+        currentChart->axes(Qt::Horizontal).first()->setRange(ringBuffer.last().x() - 10.0f, ringBuffer.last().x());
+    } else {
+        currentChart->axes(Qt::Horizontal).first()->setRange(time_axis - 10.0f, time_axis);
+    }
 
     currentValLabel->setStyleSheet(QString("font-size: 16px; font-weight: bold; color: %1;").arg(isDark ? "#4CAF50" : "#1E8449"));
     adcVoltLabel->setStyleSheet(QString("font-size: 16px; font-weight: bold; color: %1;").arg(isDark ? "#2196F3" : "#2980B9"));
