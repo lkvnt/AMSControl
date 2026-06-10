@@ -43,7 +43,7 @@ bool PowerSupplyController::isMyReply(uint32_t can_id) const {
 
 void PowerSupplyController::setPowerState(bool turnOn) {
     if (!can) {
-        emit logMessage("Power Control: Warning! CAN is not initialized.");
+        emit logMessage("Power Control: Warning! CAN is not initialized. Cannot set power state.");
         return;
     }
     if (isBusy) {
@@ -68,7 +68,7 @@ void PowerSupplyController::setPowerState(bool turnOn) {
 void PowerSupplyController::setCurrent(float amperes) {
     // Запись ЦАП 24-битный формат. 7FFFFC = 0В FFFFF8 = 10В
     if (!can) {
-        emit logMessage("Power Control: Warning! CAN is not initialized.");
+        emit logMessage("Power Control: Warning! CAN is not initialized. Cannot set current.");
         return;
     }
     if (isBusy) {
@@ -97,7 +97,7 @@ void PowerSupplyController::setCurrent(float amperes) {
 
 void PowerSupplyController::resetProtection() {
     if (!can) {
-        emit logMessage("Power Control: Warning! CAN is not initialized.");
+        emit logMessage("Power Control: Warning! CAN is not initialized. Cannot reset protection.");
         return;
     }
     if (isBusy) {
@@ -112,7 +112,7 @@ void PowerSupplyController::resetProtection() {
     
     QTimer::singleShot(100, this, [this]() {
         if (!can) {
-            emit logMessage("Power Control: Warning! CAN is not initialized.");
+            emit logMessage("Power Control: Warning! CAN is not initialized. Cannot clear register from reset protection.");
             isBusy = false;
             emit deviceBusyStateChanged(false);
             return;
@@ -130,7 +130,7 @@ void PowerSupplyController::resetProtection() {
 
 void PowerSupplyController::requestRegisters() {
     if (!can) {
-        emit logMessage("Power Control: Warning! CAN is not initialized.");
+        emit logMessage("Power Control: Warning! CAN is not initialized. Cannot request registers.");
         return;
     }
     can->sendCommand(getTargetId(), Command::ASK_REGISTER, {});
@@ -153,7 +153,7 @@ void PowerSupplyController::processADCData(const CAN_PACKET& rcv) {
 
 void PowerSupplyController::requestConnection() {
     if (!can) {
-        emit logMessage("Power Control: Warning! CAN is not initialized.");
+        emit logMessage("Power Control: Warning! CAN is not initialized. Cannot request connection.");
         return;
     }
     can->sendCommand(getTargetId(), {Command::CHECK_CONNECT});
@@ -161,7 +161,7 @@ void PowerSupplyController::requestConnection() {
 
 void PowerSupplyController::requestDataFlow() {
     if (!can) {
-        emit logMessage("Power Control: Warning! CAN is not initialized.");
+        emit logMessage("Power Control: Warning! CAN is not initialized. Cannot request data flow.");
         return;
     }
     can->sendCommand(getTargetId(), Command::START_MEASURE, {0x00, 0x07, 0x30}); // {CHANNEL, PERIOD, ONCE=0x20/FLOW=0x30}
@@ -169,7 +169,7 @@ void PowerSupplyController::requestDataFlow() {
 
 void PowerSupplyController::stopDataFlow() {
     if (!can) {
-        emit logMessage("Power Control: Warning! CAN is not initialized.");
+        emit logMessage("Power Control: Warning! CAN is not initialized. Cannot stop data flow.");
         return;
     }
     can->sendCommand(getTargetId(), {Command::STOP_MEASURE});
