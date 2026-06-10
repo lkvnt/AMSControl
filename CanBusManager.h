@@ -16,15 +16,15 @@ class CanBusManager : public QObject {
     Q_OBJECT
 public:
     explicit CanBusManager(QObject* parent = nullptr);
-    ~CanBusManager();
+    virtual ~CanBusManager();
 
-    bool init(int card = 0, int port = 0);
-    void close();
-    bool sendCommand(uint32_t target_id, const std::vector<uint8_t>& payload);
-    bool sendCommand(uint32_t target_id, uint8_t cmd, const std::vector<uint8_t>& payload);
+    virtual bool init(int card = 0, int port = 0);
+    virtual void close();
+    virtual bool sendCommand(uint32_t target_id, const std::vector<uint8_t>& payload);
+    virtual bool sendCommand(uint32_t target_id, uint8_t cmd, const std::vector<uint8_t>& payload);
     void handleUnknownPacket(const CAN_PACKET& pkt, const QString& prefix);
 
-    bool isOpen() const { return card_handle != -1; }
+    virtual bool isOpen() const { return card_handle != -1; }
 
 signals:
     void logMessage(const QString& msg);

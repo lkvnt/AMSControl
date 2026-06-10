@@ -5,6 +5,7 @@
 #include <QThreadPool>
 #include "Manager.h"
 #include "SettingsManager.h"
+#include "HardwareSimulator.h"
 
 SystemManager::SystemManager(std::unique_ptr<Logger> eventLogger,
                              std::unique_ptr<Logger> telemetryLogger,
@@ -19,7 +20,24 @@ SystemManager::SystemManager(std::unique_ptr<Logger> eventLogger,
     connect(this, &SystemManager::requestTelemetryLog, logWorker, &LogWorker::onTelemetryLogRequested);
     logThread.start();
 
-    canBus = new CanBusManager();
+    bool useSim = SettingsManager::instance().get("simulation_mode", false).toBool();
+    if (useSim) {
+        auto* simUI = new SimulatorUI(); 
+        simUI->show();
+        
+        auto* virtCan = new VirtualCanBusManager();
+        canBus = virtCan;
+        
+        connect(simUI, &SimulatorUI::powerParamsChanged, virtCan, &VirtualCanBusManager::updatePower, Qt::QueuedConnection);
+        connect(simUI, &SimulatorUI::coolParamsChanged, virtCan, &VirtualCanBusManager::updateCool, Qt::QueuedConnection);
+        connect(simUI, &SimulatorUI::sensorParamsChanged, virtCan, &VirtualCanBusManager::updateSensors, Qt::QueuedConnection);
+        
+        connect(virtCan, &VirtualCanBusManager::notifyTargetCurrent, simUI, &SimulatorUI::onTargetCurrentChanged, Qt::QueuedConnection);
+        connect(virtCan, &VirtualCanBusManager::notifyPumpState, simUI, &SimulatorUI::onPumpStateChanged, Qt::QueuedConnection);
+        connect(virtCan, &VirtualCanBusManager::notifyPowerState, simUI, &SimulatorUI::onPowerStateChanged, Qt::QueuedConnection);
+    } else {
+        canBus = new CanBusManager();
+    }
     canBus->moveToThread(&canThread);
     connect(&canThread, &QThread::finished, canBus, &QObject::deleteLater);
     canThread.start();
@@ -194,11 +212,7 @@ void SystemManager::continueStartSystem(int step) {
 
 void SystemManager::stopSystem() {
     startup_step = 0;
-    // if (!is_running && !canBus.isOpen()) return;
-    if (!is_running) {
-        emit logMessage("SystemManager: Trying to stop while already stop! Check the system manually!");
-        return;
-    }
+    
     if (!canBus->isOpen()) {
         emit logMessage("SystemManager: Trying to stop with no CAN interface! Check the system manually!");
         return;

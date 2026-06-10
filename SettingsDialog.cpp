@@ -12,6 +12,7 @@
 #include <QLabel>
 #include <QComboBox>
 #include <QApplication>
+#include <QCheckBox>
 #include "QtUI.h"
 #include "DataViewerWindow.h"
 
@@ -96,12 +97,17 @@ SettingsDialog::SettingsDialog(const QString& tabName, QWidget *parent) : QDialo
         themeLayout->addWidget(new QLabel("Тема интерфейса:"));
         themeLayout->addWidget(themeCombo);
         form->addRow(themeLayout);
+
+        auto *simCheck = new QCheckBox("Включить режим симуляции (Без железа)");
+        bool isSim = sm.get("simulation_mode", false).toBool();
+        simCheck->setChecked(isSim);
+        form->addRow(simCheck);
         
         connect(this, &QDialog::accepted, [=, &sm]() {
             sm.set("interface_freshness_limit", freshSpin->value() * 1000);
             QString newTheme = themeCombo->currentIndex() == 0 ? "dark" : "light";
 
-            bool restartNeeded = (freqSpin->value() != oldFreq) || (pollSpin->value() != oldPoll);
+            bool restartNeeded = (freqSpin->value() != oldFreq) || (pollSpin->value() != oldPoll) || (simCheck->isChecked() != isSim);
 
             if (newTheme != currentTheme) {
                 sm.set("theme", newTheme);
@@ -118,6 +124,7 @@ SettingsDialog::SettingsDialog(const QString& tabName, QWidget *parent) : QDialo
             if (restartNeeded) {
                 sm.set("update_frequency", freqSpin->value());
                 sm.set("can_bus_poll_timer", pollSpin->value());
+                sm.set("simulation_mode", simCheck->isChecked());
                 QMessageBox::information(nullptr, "Требуется перезагрузка", 
                     "Новые параметры успешно сохранены в settings.json.\n\n"
                     "Пожалуйста, перезапустите программу, чтобы изменения вступили в силу.");
