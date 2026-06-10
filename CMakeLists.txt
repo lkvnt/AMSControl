@@ -41,12 +41,14 @@ set(SOURCES
     LoggerCSV.h
     LoggerCSV.cpp
     Theme.h
+    HardwareSimulator.h
+    HardwareSimulator.cpp
 )
 
 add_executable(AMSControl WIN32 ${SOURCES})
 
 target_link_libraries(AMSControl PRIVATE Qt6::Widgets Qt6::Charts 7841_x64)
-target_compile_options(AMSControl PRIVATE /O2)
+target_compile_options(AMSControl PRIVATE $<$<CONFIG:Release>:/O2>)
 
 if(WIN32)
     qt_finalize_executable(AMSControl)
