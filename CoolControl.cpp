@@ -22,19 +22,21 @@ CoolingController::CoolingController(QObject* parent)
 
 void CoolingController::setCanInterface(CanBusManager* can_interface) {
     if (can) {
-        emit logMessage("CoolControl: CAN is already connected.");
+        emit logMessage("Cool Control: CAN is already connected.");
     }
     can = can_interface;
     connect(can, &CanBusManager::packetReceived, this, &CoolingController::handleMessage);
-    emit logMessage("CoolControl: CAN interface connected.");
+    emit logMessage("Cool Control: CAN interface connected.");
 }
 
 void CoolingController::setState(bool start) {
     if (!can) {
-        emit logMessage("CoolControl: Warning! CAN is not initialized.");
+        emit logMessage("Cool Control: Warning! CAN is not initialized.");
         return;
     }
+
     uint8_t state = start ? 0x01 : 0x00;
+    emit logMessage(state ? "Cool Control: Command power on." : "Cool Control: Command power off.");
     can->sendCommand(getTargetId(), Command::SET_STATE, {state});
 }
 
@@ -61,6 +63,8 @@ void CoolingController::handleMessage(const CAN_PACKET& pkt) {
             state = (pkt.data[1] == 0x01);
         } else if (cmd == Command::CHECK_CONNECT) {
             arduinoResponded = true;
+        } else {
+            can->handleUnknownPacket(pkt, "Cool Control");
         }
     }
 }
@@ -71,7 +75,7 @@ uint32_t CoolingController::getTargetId() const {
 
 void CoolingController::requestConnection() {
     if (!can) {
-        emit logMessage("CoolControl: Warning! CAN is not initialized.");
+        emit logMessage("Cool Control: Warning! CAN is not initialized.");
         return;
     }
     can->sendCommand(getTargetId(), {Command::CHECK_CONNECT});
@@ -79,7 +83,7 @@ void CoolingController::requestConnection() {
 
 void CoolingController::requestDataFlow() {
     if (!can) {
-        emit logMessage("CoolControl: Warning! CAN is not initialized.");
+        emit logMessage("Cool Control: Warning! CAN is not initialized.");
         return;
     }
     can->sendCommand(getTargetId(), {Command::START_MEASURE});
@@ -87,7 +91,7 @@ void CoolingController::requestDataFlow() {
 
 void CoolingController::stopDataFlow() {
     if (!can) {
-        emit logMessage("CoolControl: Warning! CAN is not initialized.");
+        emit logMessage("Cool Control: Warning! CAN is not initialized.");
         return;
     }
     can->sendCommand(getTargetId(), {Command::STOP_MEASURE});
