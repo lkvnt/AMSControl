@@ -614,11 +614,13 @@ void DataViewerWindow::showCustomTooltip(const QPointF& mousePixelPos) {
         bool isDark = (themeName == "dark");
 
         if (dist1 < 30) {
+            char format = 'f';
+            if (m_metricCombo1->currentIndex() == 6) format = 'e';
             QDateTime dt = QDateTime::fromMSecsSinceEpoch(static_cast<qint64>(pt1.x()));
             text += QString("<b style='color:%1;'>Синий график</b><br>Время: %2<br>Значение: %3")
                     .arg(isDark ? "#2196F3" : "#005cc5")
                     .arg(dt.toString("HH:mm:ss.zzz"))
-                    .arg(pt1.y(), 0, 'f', 4);
+                    .arg(pt1.y(), 0, format, 4);
 
             m_lineV1->setLine(pix1.x(), pix1.y(), pix1.x(), plotArea.bottom());
             m_lineH1->setLine(plotArea.left(), pix1.y(), pix1.x(), pix1.y());
@@ -630,12 +632,14 @@ void DataViewerWindow::showCustomTooltip(const QPointF& mousePixelPos) {
         }
 
         if (dist2 < 30) {
+            char format = 'f';
+            if (m_metricCombo2->currentIndex() - 1 == 6) format = 'e';
             QDateTime dt = QDateTime::fromMSecsSinceEpoch(static_cast<qint64>(pt2.x()));
             if (text != "") text += "<br>";
             text += QString("<b style='color:%1;'>Красный график</b><br>Время: %2<br>Значение: %3")
                     .arg(isDark ? "#F44336" : "#C62828")
                     .arg(dt.toString("HH:mm:ss.zzz"))
-                    .arg(pt2.y(), 0, 'f', 4);
+                    .arg(pt2.y(), 0, format, 4);
             
             m_lineV2->setLine(pix2.x(), pix2.y(), pix2.x(), plotArea.bottom());
             m_lineH2->setLine(pix2.x(), pix2.y(), plotArea.right(), pix2.y());
