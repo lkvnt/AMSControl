@@ -35,6 +35,7 @@ SystemManager::SystemManager(std::unique_ptr<Logger> eventLogger,
         connect(virtCan, &VirtualCanBusManager::notifyTargetCurrent, simUI, &SimulatorUI::onTargetCurrentChanged, Qt::QueuedConnection);
         connect(virtCan, &VirtualCanBusManager::notifyPumpState, simUI, &SimulatorUI::onPumpStateChanged, Qt::QueuedConnection);
         connect(virtCan, &VirtualCanBusManager::notifyPowerState, simUI, &SimulatorUI::onPowerStateChanged, Qt::QueuedConnection);
+        connect(virtCan, &VirtualCanBusManager::notifyPowerFlags, simUI, &SimulatorUI::onPowerFlagsChanged, Qt::QueuedConnection);
     } else {
         canBus = new CanBusManager();
     }

@@ -20,6 +20,7 @@ public slots:
     void onTargetCurrentChanged(float amps);
     void onPumpStateChanged(bool state);
     void onPowerStateChanged(bool state);
+    void onPowerFlagsChanged();
 
 signals:
     void powerParamsChanged(float voltage, uint8_t flags, bool isOnline);
@@ -66,6 +67,7 @@ signals:
     void notifyTargetCurrent(float amps);
     void notifyPumpState(bool state);
     void notifyPowerState(bool state);
+    void notifyPowerFlags();
 
 private slots:
     void onSimTick();

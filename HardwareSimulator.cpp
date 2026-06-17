@@ -10,6 +10,8 @@ SimulatorUI::SimulatorUI(QWidget *parent) : QWidget(parent) {
     resize(400, 600);
     setAttribute(Qt::WA_DeleteOnClose);
 
+    setAttribute(Qt::WA_QuitOnClose, false);
+
     auto *mainLayout = new QVBoxLayout(this);
 
     auto *powBox = new QGroupBox("ВЧ-300 (Питание)");
@@ -120,6 +122,24 @@ void SimulatorUI::onPowerStateChanged(bool state) {
     emit broadcastValues();
 }
 
+void SimulatorUI::onPowerFlagsChanged() {
+    for (QCheckBox* o: {chkErrOut1, chkErrOut2, chkErrTemp, chkErrInv, chkErrPhase}) {
+        o->blockSignals(true);
+    }
+
+    chkErrOut1->setChecked(false);
+    chkErrOut2->setChecked(false);
+    chkErrTemp->setChecked(false);
+    chkErrInv->setChecked(false);
+    chkErrPhase->setChecked(false);
+
+    for (QCheckBox* o: {chkErrOut1, chkErrOut2, chkErrTemp, chkErrInv, chkErrPhase}) {
+        o->blockSignals(false);
+    }
+
+    emit broadcastValues();
+}
+
 
 VirtualCanBusManager::VirtualCanBusManager(QObject *parent) : CanBusManager(parent) {
     simTimer = new QTimer(this);
@@ -183,6 +203,7 @@ bool VirtualCanBusManager::sendCommand(uint32_t target_id, const std::vector<uin
             uint8_t state = (payload.size() > 1) ? payload[1] : 0;
             if (state == 0x03) emit notifyPowerState(true);
             else if (state == 0x00) emit notifyPowerState(false);
+            else if (state == 0x08) emit notifyPowerFlags();
         }
         else if (cmd == 0x80) {
             if (payload.size() >= 4) {
