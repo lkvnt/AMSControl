@@ -1,7 +1,7 @@
 #ifndef LOGGERTXT_H
 #define LOGGERTXT_H
 
-#include "Logger.h"
+#include "src/logging/Logger.h"
 
 class LoggerTXT : public Logger {
 public:

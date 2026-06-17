@@ -8,9 +8,9 @@
 #include <QWheelEvent>
 #include <QCursor>
 #include <QLabel>
-#include "DataViewerWindow.h"
-#include "Theme.h"
-#include "SettingsManager.h"
+#include "src/core/SettingsManager.h"
+#include "src/gui/DataViewerWindow.h"
+#include "src/gui/Theme.h"
 
 class ChartViewPanZoom : public QChartView {
     bool m_isPanning = false;

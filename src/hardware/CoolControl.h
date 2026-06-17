@@ -3,7 +3,7 @@
 
 #include <cstdint>
 #include <QObject>
-#include "CanBusManager.h"
+#include "src/hardware/CanBusManager.h"
 
 class CoolingController : public QObject {
     Q_OBJECT

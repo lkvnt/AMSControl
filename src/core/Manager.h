@@ -3,12 +3,12 @@
 
 #include <QObject>
 #include <QDateTime>
-#include "PowerControl.h"
-#include "CoolControl.h"
-#include "CanBusManager.h"
-#include "SensorControl.h"
-#include "Logger.h"
-#include "LogWorker.h"
+#include "src/hardware/PowerControl.h"
+#include "src/hardware/CoolControl.h"
+#include "src/hardware/CanBusManager.h"
+#include "src/hardware/SensorControl.h"
+#include "src/logging/Logger.h"
+#include "src/logging/LogWorker.h"
 
 class SystemManager : public QObject {
     Q_OBJECT

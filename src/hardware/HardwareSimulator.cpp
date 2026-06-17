@@ -1,8 +1,8 @@
-#include "HardwareSimulator.h"
-#include "SettingsManager.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QFormLayout>
+#include "src/core/SettingsManager.h"
+#include "src/hardware/HardwareSimulator.h"
 
 
 SimulatorUI::SimulatorUI(QWidget *parent) : QWidget(parent) {

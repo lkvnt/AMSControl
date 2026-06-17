@@ -1,7 +1,3 @@
-#include "SettingsDialog.h"
-#include "SettingsManager.h"
-#include "PowerControl.h"
-#include "CoolControl.h"
 #include <QVBoxLayout>
 #include <QFormLayout>
 #include <QSpinBox>
@@ -13,8 +9,12 @@
 #include <QComboBox>
 #include <QApplication>
 #include <QCheckBox>
-#include "QtUI.h"
-#include "DataViewerWindow.h"
+#include "src/core/SettingsManager.h"
+#include "src/hardware/PowerControl.h"
+#include "src/hardware/CoolControl.h"
+#include "src/gui/QtUI.h"
+#include "src/gui/SettingsDialog.h"
+#include "src/gui/DataViewerWindow.h"
 
 SettingsDialog::SettingsDialog(const QString& tabName, QWidget *parent) : QDialog(parent) {
     setWindowTitle("Настройки: " + tabName);

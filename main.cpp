@@ -1,8 +1,8 @@
 #include <QApplication>
 #include "QtUI.h"
-#include "Manager.h"
-#include "LoggerCSV.h"
-#include "LoggerTXT.h"
+#include "src/core/Manager.h"
+#include "src/logging/LoggerCSV.h"
+#include "src/logging/LoggerTXT.h"
 
 int main(int argc, char *argv[])
 {

@@ -1,6 +1,6 @@
 #include <QString>
-#include "CanBusManager.h"
-#include "SettingsManager.h"
+#include "src/core/SettingsManager.h"
+#include "src/hardware/CanBusManager.h"
 
 CanBusManager::CanBusManager(QObject* parent) : QObject(parent), card_handle(-1) {
     pollTimer = new QTimer(this);

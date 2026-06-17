@@ -1,8 +1,7 @@
 #include <cmath>
 #include <QDateTime>
-#include "SensorControl.h"
-#include "SettingsManager.h"
-#include "CanBusManager.h"
+#include "src/core/SettingsManager.h"
+#include "src/hardware/SensorControl.h"
 
 #define PRIORITY_SEND 0b110
 #define PRIORITY_RECEIVE 0b111

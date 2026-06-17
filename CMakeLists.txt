@@ -13,39 +13,36 @@ find_package(Qt6 REQUIRED COMPONENTS Widgets Charts)
 include_directories("C:/Program Files/ADLINK/PCI-7841/Include") 
 link_directories("C:/Program Files/ADLINK/PCI-7841/Include")
 
-set(SOURCES
+set(PROJECT_SOURCES
     main.cpp
-    QtUI.cpp
-    QtUI.h
-    Manager.cpp
-    Manager.h
-    CanBusManager.h
-    CanBusManager.cpp
-    PowerControl.cpp
-    PowerControl.h
-    CoolControl.cpp
-    CoolControl.h
-    SensorControl.cpp
-    SensorControl.h
-    DataViewerWindow.h
-    DataViewerWindow.cpp
-    SettingsDialog.h
-    SettingsDialog.cpp
-    SettingsManager.h
-    SettingsManager.cpp
-    LogWorker.h
-    LogWorker.cpp
-    Logger.h
-    LoggerTXT.h
-    LoggerTXT.cpp
-    LoggerCSV.h
-    LoggerCSV.cpp
-    Theme.h
-    HardwareSimulator.h
-    HardwareSimulator.cpp
+    
+    src/core/Manager.cpp
+    src/core/SettingsManager.cpp
+
+    src/hardware/CanBusManager.cpp
+    src/hardware/PowerControl.cpp
+    src/hardware/CoolControl.cpp
+    src/hardware/SensorControl.cpp
+    src/hardware/HardwareSimulator.cpp
+
+    src/gui/QtUI.cpp
+    src/gui/DataViewerWindow.cpp
+    src/gui/SettingsDialog.cpp
+
+    src/logging/LoggerTXT.cpp
+    src/logging/LoggerCSV.cpp
+    src/logging/LogWorker.cpp
 )
 
-add_executable(AMSControl WIN32 ${SOURCES})
+add_executable(${PROJECT_NAME} WIN32 ${PROJECT_SOURCES})
+
+target_include_directories(${PROJECT_NAME} PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/core
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/hardware
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/gui
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/logging
+)
 
 target_link_libraries(AMSControl PRIVATE Qt6::Widgets Qt6::Charts 7841_x64)
 target_compile_options(AMSControl PRIVATE $<$<CONFIG:Release>:/O2>)

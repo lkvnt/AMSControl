@@ -8,7 +8,7 @@
 #include <QLabel>
 #include <QTimer>
 #include <QGroupBox>
-#include "CanBusManager.h"
+#include "src/hardware/CanBusManager.h"
 
 
 class SimulatorUI : public QWidget {

@@ -3,9 +3,9 @@
 #include <QDir>
 #include <QElapsedTimer>
 #include <QThreadPool>
-#include "Manager.h"
-#include "SettingsManager.h"
-#include "HardwareSimulator.h"
+#include "src/core/Manager.h"
+#include "src/core/SettingsManager.h"
+#include "src/hardware/HardwareSimulator.h"
 
 SystemManager::SystemManager(std::unique_ptr<Logger> eventLogger,
                              std::unique_ptr<Logger> telemetryLogger,

@@ -1,4 +1,4 @@
-#include "LogWorker.h"
+#include "src/logging/LogWorker.h"
 
 LogWorker::LogWorker(std::unique_ptr<Logger> eventLogger, 
               std::unique_ptr<Logger> telemetryLogger, 

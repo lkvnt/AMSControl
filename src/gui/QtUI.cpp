@@ -8,12 +8,12 @@
 #include <QUrl>
 #include <QGroupBox>
 #include <QScrollArea>
-#include "Manager.h"
-#include "DataViewerWindow.h"
-#include "QtUI.h"
-#include "SettingsDialog.h"
-#include "SettingsManager.h"
-#include "Theme.h"
+#include "src/core/Manager.h"
+#include "src/core/SettingsManager.h"
+#include "src/gui/DataViewerWindow.h"
+#include "src/gui/QtUI.h"
+#include "src/gui/SettingsDialog.h"
+#include "src/gui/Theme.h"
 
 MainWindow::MainWindow(SystemManager *manager, QWidget *parent)
     : QMainWindow(parent), systemManager(manager), time_axis(0.0f)

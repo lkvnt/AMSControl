@@ -3,7 +3,7 @@
 
 #include <QString>
 #include <QChart>
-#include "SettingsManager.h"
+#include "src/core/SettingsManager.h"
 
 namespace Theme {
 

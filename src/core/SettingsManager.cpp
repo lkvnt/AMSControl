@@ -1,7 +1,7 @@
-#include "SettingsManager.h"
 #include <QFile>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include "src/core/SettingsManager.h"
 
 SettingsManager& SettingsManager::instance() {
     static SettingsManager inst;

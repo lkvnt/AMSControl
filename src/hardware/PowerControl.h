@@ -4,7 +4,7 @@
 #include <cstdint>
 #include <vector>
 #include <QObject>
-#include "CanBusManager.h"
+#include "src/hardware/CanBusManager.h"
 
 class PowerSupplyController : public QObject {
     Q_OBJECT

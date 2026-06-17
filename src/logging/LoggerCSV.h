@@ -1,8 +1,8 @@
 #ifndef LOGGERCSV_H
 #define LOGGERCSV_H
 
-#include "Logger.h"
 #include <QStringList>
+#include "src/logging/Logger.h"
 
 class LoggerCSV : public Logger {
 public:

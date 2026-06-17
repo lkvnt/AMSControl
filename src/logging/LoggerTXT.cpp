@@ -1,7 +1,7 @@
-#include "LoggerTXT.h"
 #include <QDir>
 #include <QFile>
 #include <QTextStream>
+#include "src/logging/LoggerTXT.h"
 
 void LoggerTXT::log(const QString& dirPath, const QString& fileName, const QVariant& data) {
     QString fullFileName = fileName + ".txt";

@@ -4,7 +4,7 @@
 #include <QObject>
 #include <QVariant>
 #include <memory>
-#include "Logger.h"
+#include "src/logging/Logger.h"
 
 class LogWorker : public QObject {
     Q_OBJECT
