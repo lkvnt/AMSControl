@@ -47,12 +47,13 @@ void PowerSupplyController::setPowerState(bool turnOn) {
         return;
     }
     if (isBusy) {
-        emit logMessage("Power Control: Warning! VCH-300 is busy, management is inaccessible.");
+        emit logMessage("Power Control: Warning! VCH-300 is busy, power changing is inaccessible.");
         return;
     }
 
+    emit logMessage(turnOn ? "Power Control: Command power on." : "Power Control: Command power off.");
     isBusy = true;
-    emit deviceBusyStateChanged(true);
+    emit deviceBusyStateChanged(isBusy);
 
     uint8_t state = turnOn ? 0x03 : 0x00; // Чтобы включить замыкается ВКЛ (0b01) и ВЫКЛ (0b10)
 
@@ -60,8 +61,7 @@ void PowerSupplyController::setPowerState(bool turnOn) {
 
     QTimer::singleShot(300, this, [this, turnOn]() {
         isBusy = false;
-        emit deviceBusyStateChanged(false);
-        emit logMessage(turnOn ? "PowerControl: Command power on." : "PowerControl: Command power off.");
+        emit deviceBusyStateChanged(isBusy);
     });
 }
 
@@ -72,7 +72,7 @@ void PowerSupplyController::setCurrent(float amperes) {
         return;
     }
     if (isBusy) {
-        emit logMessage("Power Control: Warning! VCH-300 is busy, management is inaccessible.");
+        emit logMessage("Power Control: Warning! VCH-300 is busy, current setting is inaccessible.");
         return;
     }
 
@@ -106,7 +106,7 @@ void PowerSupplyController::resetProtection() {
     }
 
     isBusy = true;
-    emit deviceBusyStateChanged(true);
+    emit deviceBusyStateChanged(isBusy);
     emit logMessage("Power Control: Resetting...");
     can->sendCommand(getTargetId(), Command::SET_REGISTER, {0x08});
     
@@ -114,7 +114,7 @@ void PowerSupplyController::resetProtection() {
         if (!can) {
             emit logMessage("Power Control: Warning! CAN is not initialized. Cannot clear register from reset protection.");
             isBusy = false;
-            emit deviceBusyStateChanged(false);
+            emit deviceBusyStateChanged(isBusy);
             return;
         }
         
@@ -122,7 +122,7 @@ void PowerSupplyController::resetProtection() {
         
         QTimer::singleShot(300, this, [this]() {
             isBusy = false;
-            emit deviceBusyStateChanged(false);
+            emit deviceBusyStateChanged(isBusy);
             emit logMessage("Power Control: Reset completed.");
         });
     });
@@ -186,16 +186,18 @@ void PowerSupplyController::processRegisterData(const CAN_PACKET& rcv) {
 }
 
 std::pair<bool, QString> PowerSupplyController::messageFromRegister(uint8_t reg) const {
-    switch (reg) {
-        case 0x00: return {false, "VCH-300 is off!"};
-        case 0x01: return {true, "VCH-300 is on."};
-        case 0x02: return {false, "Out protection 1!"};
-        case 0x04: return {false, "Out protection 2!"};
-        case 0x08: return {false, "Temperature protection!"};
-        case 0x10: return {false, "Invertor error!"};
-        case 0x20: return {false, "Phases error!"};
-        default: return {false, "Unknown status!"};
-    }
+    if (reg == 0x00) return {false, "VCH-300 is off!"};
+    if (reg == 0x01) return {true, "VCH-300 is on."};
+
+    if (reg & 0xC0) return {false, "Unknown power status!"};
+
+    QString outMsg = "";
+    if (reg & 0x02) outMsg += "Power out protection 1!";
+    if (reg & 0x04) outMsg += "Power out protection 2!";
+    if (reg & 0x08) outMsg += "Power temperature protection!";
+    if (reg & 0x10) outMsg += "Power invertor error!";
+    if (reg & 0x20) outMsg += "Power phases error!";
+    return {false, outMsg};
 }
 
 void PowerSupplyController::handleMessage(const CAN_PACKET& pkt) {
@@ -215,6 +217,7 @@ void PowerSupplyController::handleMessage(const CAN_PACKET& pkt) {
 }
 
 void PowerSupplyController::onSystemStop() {
+    isBusy = false;
     setCurrent(0);
     setPowerState(false);
     cdacResponded = false;
