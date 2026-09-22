@@ -1,5 +1,5 @@
-Control system for accelerator mass-spectrometer
-PowerControl -> VCH-300
+Control system for accelerator mass-spectrometer\n
+PowerControl -> VCH-300\n
 CoolControl -> Arduino NANO + MCP2515
 SensorControl -> CAC208
 CanBusManager -> ADLINK PCI-7841
